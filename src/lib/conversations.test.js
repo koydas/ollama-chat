@@ -1,0 +1,241 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  CONVERSATIONS_KEY,
+  DEFAULT_PROFILE_NAME,
+  deriveTitle,
+  formatRelativeTime,
+  LEGACY_MESSAGES_KEY,
+  loadConversations,
+  loadProfileName,
+  loadServerSync,
+  loadStoredModel,
+  loadTheme,
+  makeConversation,
+  makeId,
+  MODEL_STORAGE_KEY,
+  mostRecentId,
+  PROFILE_NAME_KEY,
+  SERVER_SYNC_KEY,
+  THEME_KEY,
+} from './conversations'
+
+beforeEach(() => {
+  localStorage.clear()
+})
+
+describe('makeId', () => {
+  it('returns unique values', () => {
+    const a = makeId()
+    const b = makeId()
+    expect(a).not.toBe(b)
+    expect(typeof a).toBe('string')
+    expect(a.length).toBeGreaterThan(0)
+  })
+})
+
+describe('deriveTitle', () => {
+  it('returns empty string when there is no user message', () => {
+    expect(deriveTitle([])).toBe('')
+    expect(deriveTitle([{ role: 'assistant', content: 'salut' }])).toBe('')
+  })
+
+  it('uses the first user message, trimmed and collapsed', () => {
+    const messages = [{ role: 'user', content: '  bonjour   le monde  ' }]
+    expect(deriveTitle(messages)).toBe('bonjour le monde')
+  })
+
+  it('truncates long titles to 42 chars with an ellipsis', () => {
+    const longText = 'a'.repeat(60)
+    const title = deriveTitle([{ role: 'user', content: longText }])
+    expect(title).toBe(`${'a'.repeat(42)}…`)
+  })
+
+  it('ignores assistant messages that come before the first user message', () => {
+    const messages = [
+      { role: 'assistant', content: 'bonjour, comment puis-je aider ?' },
+      { role: 'user', content: 'salut' },
+    ]
+    expect(deriveTitle(messages)).toBe('salut')
+  })
+})
+
+describe('makeConversation', () => {
+  it('creates an empty conversation with the given model', () => {
+    const conv = makeConversation('llama3.1:8b-instruct-q4_0')
+    expect(conv.model).toBe('llama3.1:8b-instruct-q4_0')
+    expect(conv.title).toBe('')
+    expect(conv.messages).toEqual([])
+    expect(typeof conv.id).toBe('string')
+    expect(typeof conv.updatedAt).toBe('number')
+  })
+
+  it('defaults model to an empty string when none is given', () => {
+    expect(makeConversation().model).toBe('')
+    expect(makeConversation('').model).toBe('')
+  })
+})
+
+describe('loadConversations', () => {
+  it('returns an empty array when nothing is stored', () => {
+    expect(loadConversations()).toEqual([])
+  })
+
+  it('returns the stored conversations array as-is', () => {
+    const stored = [{ id: '1', title: 'x', messages: [], model: '', updatedAt: 1 }]
+    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(stored))
+    expect(loadConversations()).toEqual(stored)
+  })
+
+  it('ignores an empty stored array and falls back to []', () => {
+    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify([]))
+    expect(loadConversations()).toEqual([])
+  })
+
+  it('recovers from corrupt JSON in the conversations key', () => {
+    localStorage.setItem(CONVERSATIONS_KEY, '{not json')
+    expect(loadConversations()).toEqual([])
+  })
+
+  it('migrates legacy single-conversation messages into one conversation', () => {
+    const legacyMessages = [
+      { role: 'user', content: 'salut' },
+      { role: 'assistant', content: 'bonjour' },
+    ]
+    localStorage.setItem(LEGACY_MESSAGES_KEY, JSON.stringify(legacyMessages))
+
+    const result = loadConversations()
+
+    expect(result).toHaveLength(1)
+    expect(result[0].messages).toEqual(legacyMessages)
+    expect(result[0].title).toBe('salut')
+    expect(localStorage.getItem(LEGACY_MESSAGES_KEY)).toBeNull()
+  })
+
+  it('removes the legacy key even if it contained no usable messages', () => {
+    localStorage.setItem(LEGACY_MESSAGES_KEY, JSON.stringify([]))
+    expect(loadConversations()).toEqual([])
+    expect(localStorage.getItem(LEGACY_MESSAGES_KEY)).toBeNull()
+  })
+
+  it('prefers the new conversations key over the legacy one', () => {
+    const stored = [{ id: '1', title: 'nouveau', messages: [], model: '', updatedAt: 1 }]
+    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(stored))
+    localStorage.setItem(LEGACY_MESSAGES_KEY, JSON.stringify([{ role: 'user', content: 'ancien' }]))
+
+    expect(loadConversations()).toEqual(stored)
+  })
+})
+
+describe('mostRecentId', () => {
+  it('returns null for an empty list', () => {
+    expect(mostRecentId([])).toBeNull()
+  })
+
+  it('returns the id of the conversation with the highest updatedAt', () => {
+    const conversations = [
+      { id: 'a', updatedAt: 1000 },
+      { id: 'b', updatedAt: 3000 },
+      { id: 'c', updatedAt: 2000 },
+    ]
+    expect(mostRecentId(conversations)).toBe('b')
+  })
+
+  it('does not depend on array order', () => {
+    const conversations = [
+      { id: 'newest', updatedAt: 5000 },
+      { id: 'oldest', updatedAt: 100 },
+    ]
+    expect(mostRecentId(conversations)).toBe('newest')
+  })
+})
+
+describe('loadStoredModel', () => {
+  it('returns an empty string when nothing is stored', () => {
+    expect(loadStoredModel()).toBe('')
+  })
+
+  it('returns the stored model name', () => {
+    localStorage.setItem(MODEL_STORAGE_KEY, 'qwen2.5-coder:7b-instruct-q4_0')
+    expect(loadStoredModel()).toBe('qwen2.5-coder:7b-instruct-q4_0')
+  })
+})
+
+describe('loadProfileName', () => {
+  it('defaults to the generic profile name when nothing is stored', () => {
+    expect(loadProfileName()).toBe(DEFAULT_PROFILE_NAME)
+  })
+
+  it('returns the stored profile name', () => {
+    localStorage.setItem(PROFILE_NAME_KEY, 'Sam')
+    expect(loadProfileName()).toBe('Sam')
+  })
+})
+
+describe('loadTheme', () => {
+  it('defaults to system', () => {
+    expect(loadTheme()).toBe('system')
+  })
+
+  it('returns light or dark when stored', () => {
+    localStorage.setItem(THEME_KEY, 'dark')
+    expect(loadTheme()).toBe('dark')
+    localStorage.setItem(THEME_KEY, 'light')
+    expect(loadTheme()).toBe('light')
+  })
+
+  it('falls back to system for an invalid stored value', () => {
+    localStorage.setItem(THEME_KEY, 'not-a-theme')
+    expect(loadTheme()).toBe('system')
+  })
+})
+
+describe('loadServerSync', () => {
+  it('defaults to false', () => {
+    expect(loadServerSync()).toBe(false)
+  })
+
+  it('returns true only when stored as the string "true"', () => {
+    localStorage.setItem(SERVER_SYNC_KEY, 'true')
+    expect(loadServerSync()).toBe(true)
+    localStorage.setItem(SERVER_SYNC_KEY, 'false')
+    expect(loadServerSync()).toBe(false)
+  })
+})
+
+describe('formatRelativeTime', () => {
+  const now = new Date('2026-07-27T12:00:00Z').getTime()
+
+  it('reports "à l\'instant" for anything under 30 seconds', () => {
+    expect(formatRelativeTime(now - 10_000, now)).toBe("à l'instant")
+  })
+
+  it('reports minutes under an hour', () => {
+    expect(formatRelativeTime(now - 5 * 60_000, now)).toBe('il y a 5 min')
+  })
+
+  it('reports hours under a day', () => {
+    expect(formatRelativeTime(now - 3 * 3_600_000, now)).toBe('il y a 3 h')
+  })
+
+  it('reports "hier" for exactly one day ago', () => {
+    expect(formatRelativeTime(now - 24 * 3_600_000, now)).toBe('hier')
+  })
+
+  it('reports days under a week', () => {
+    expect(formatRelativeTime(now - 3 * 24 * 3_600_000, now)).toBe('il y a 3 j')
+  })
+
+  it('falls back to a date for a week or more', () => {
+    const tenDaysAgo = now - 10 * 24 * 3_600_000
+    expect(formatRelativeTime(tenDaysAgo, now)).toBe(
+      new Date(tenDaysAgo).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+    )
+  })
+
+  it('defaults to the current time when now is not given', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    expect(formatRelativeTime(now - 1000)).toBe("à l'instant")
+    vi.useRealTimers()
+  })
+})
