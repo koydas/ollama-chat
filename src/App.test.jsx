@@ -190,6 +190,31 @@ describe('App', () => {
     expect(fetchMock.mock.calls.filter((c) => c[0] === '/api/chat')).toHaveLength(1)
   })
 
+  it('attaches an image and sends it as base64 in the chat request', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockFetch({ chatChunks: ['{"message":{"content":"Une photo de chat"}}\n'] })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    await screen.findByRole('combobox')
+
+    const file = new File(['fake-image-bytes'], 'chat.png', { type: 'image/png' })
+    const fileInput = document.querySelector('input[type="file"]')
+    await user.upload(fileInput, file)
+
+    await screen.findByAltText('')
+    await user.type(screen.getByPlaceholderText('Type a message...'), "qu'est-ce que c'est ?")
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => expect(screen.getByText('Une photo de chat')).toBeInTheDocument())
+
+    const chatCall = fetchMock.mock.calls.find((c) => c[0] === '/api/chat')
+    const sentMessage = JSON.parse(chatCall[1].body).messages[0]
+    expect(sentMessage.content).toBe("qu'est-ce que c'est ?")
+    expect(sentMessage.images).toHaveLength(1)
+    expect(sentMessage.images[0]).not.toMatch(/^data:/)
+  })
+
   it('shows an error banner when Ollama cannot be reached', async () => {
     vi.stubGlobal(
       'fetch',

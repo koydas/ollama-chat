@@ -11,11 +11,13 @@ import {
   loadStoredModel,
   loadTheme,
   makeConversation,
+  makeId,
   MODEL_STORAGE_KEY,
   mostRecentId,
   PROFILE_NAME_KEY,
   SERVER_SYNC_KEY,
   THEME_KEY,
+  toOllamaMessage,
 } from './lib/conversations'
 import './App.css'
 
@@ -25,6 +27,7 @@ function App() {
   const [conversations, setConversations] = useState(loadConversations)
   const [activeId, setActiveId] = useState(() => mostRecentId(loadConversations()))
   const [input, setInput] = useState('')
+  const [attachments, setAttachments] = useState([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState('')
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -37,6 +40,7 @@ function App() {
   const listEndRef = useRef(null)
   const profileSectionRef = useRef(null)
   const syncedOnceRef = useRef(false)
+  const fileInputRef = useRef(null)
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeId) ?? conversations[0] ?? null,
@@ -204,7 +208,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: selectedModel,
-          messages: messagesForModel,
+          messages: messagesForModel.map(toOllamaMessage),
           stream: true,
         }),
       })
@@ -246,13 +250,31 @@ function App() {
     }
   }
 
+  function handleAttachFiles(e) {
+    const files = Array.from(e.target.files || [])
+    e.target.value = ''
+    for (const file of files) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        setAttachments((prev) => [...prev, { id: makeId(), dataUrl: reader.result }])
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  function handleRemoveAttachment(id) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id))
+  }
+
   async function handleSend(e) {
     e.preventDefault()
     const userText = input.trim()
-    if (!userText || isStreaming || !selectedModel || !activeConversation) return
+    if ((!userText && attachments.length === 0) || isStreaming || !selectedModel || !activeConversation) return
 
     const convId = activeConversation.id
-    const newMessages = [...messages, { role: 'user', content: userText }]
+    const images = attachments.map((a) => a.dataUrl)
+    const userMessage = { role: 'user', content: userText, ...(images.length > 0 ? { images } : {}) }
+    const newMessages = [...messages, userMessage]
     setConversations((prev) =>
       prev.map((c) => {
         if (c.id !== convId) return c
@@ -261,6 +283,7 @@ function App() {
       }),
     )
     setInput('')
+    setAttachments([])
     await streamReply(convId, newMessages)
   }
 
@@ -285,7 +308,7 @@ function App() {
 
     const convId = activeConversation.id
     const editedRole = messages[i].role
-    const truncated = [...messages.slice(0, i), { role: editedRole, content: text }]
+    const truncated = [...messages.slice(0, i), { ...messages[i], content: text }]
     setEditingIndex(null)
     setEditingText('')
 
@@ -473,6 +496,13 @@ function App() {
                   </button>
                 )}
               </div>
+              {msg.images && msg.images.length > 0 && (
+                <div className="message-images">
+                  {msg.images.map((src, imgIdx) => (
+                    <img key={imgIdx} src={src} alt="" className="message-image" />
+                  ))}
+                </div>
+              )}
               {isEditing ? (
                 <div className="message-edit">
                   <textarea
@@ -516,24 +546,65 @@ function App() {
       </div>
 
       <form className="input-bar" onSubmit={handleSend}>
-        <div className="input-wrap">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isStreaming}
-            placeholder="Type a message..."
-          />
+        {attachments.length > 0 && (
+          <div className="attachment-strip">
+            {attachments.map((a) => (
+              <div className="attachment-thumb" key={a.id}>
+                <img src={a.dataUrl} alt="" />
+                <button
+                  type="button"
+                  className="attachment-remove"
+                  onClick={() => handleRemoveAttachment(a.id)}
+                  aria-label="Retirer l'image"
+                >
+                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="5" x2="19" y2="19"></line>
+                    <line x1="19" y1="5" x2="5" y2="19"></line>
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="input-row">
           <button
-            type="submit"
-            className="send-btn"
-            disabled={isStreaming || !input.trim() || !selectedModel}
-            aria-label="Send"
+            type="button"
+            className="icon-btn attach-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isStreaming}
+            aria-label="Joindre une image"
           >
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="19" x2="12" y2="5"></line>
-              <polyline points="5 12 12 5 19 12"></polyline>
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
             </svg>
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={handleAttachFiles}
+          />
+          <div className="input-wrap">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={isStreaming}
+              placeholder="Type a message..."
+            />
+            <button
+              type="submit"
+              className="send-btn"
+              disabled={isStreaming || (!input.trim() && attachments.length === 0) || !selectedModel}
+              aria-label="Send"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+              </svg>
+            </button>
+          </div>
         </div>
       </form>
     </div>

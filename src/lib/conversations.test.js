@@ -17,6 +17,7 @@ import {
   PROFILE_NAME_KEY,
   SERVER_SYNC_KEY,
   THEME_KEY,
+  toOllamaMessage,
 } from './conversations'
 
 beforeEach(() => {
@@ -199,6 +200,35 @@ describe('loadServerSync', () => {
     expect(loadServerSync()).toBe(true)
     localStorage.setItem(SERVER_SYNC_KEY, 'false')
     expect(loadServerSync()).toBe(false)
+  })
+})
+
+describe('toOllamaMessage', () => {
+  it('passes text-only messages through unchanged', () => {
+    expect(toOllamaMessage({ role: 'user', content: 'salut' })).toEqual({
+      role: 'user',
+      content: 'salut',
+    })
+  })
+
+  it('strips the data URL prefix from images, keeping bare base64', () => {
+    const message = {
+      role: 'user',
+      content: "qu'est-ce que c'est ?",
+      images: ['data:image/png;base64,AAAA', 'data:image/jpeg;base64,BBBB'],
+    }
+    expect(toOllamaMessage(message)).toEqual({
+      role: 'user',
+      content: "qu'est-ce que c'est ?",
+      images: ['AAAA', 'BBBB'],
+    })
+  })
+
+  it('treats an empty images array the same as no images', () => {
+    expect(toOllamaMessage({ role: 'user', content: 'salut', images: [] })).toEqual({
+      role: 'user',
+      content: 'salut',
+    })
   })
 })
 

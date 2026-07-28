@@ -96,6 +96,20 @@ export function loadServerSync() {
   }
 }
 
+// Ollama expects `images` as bare base64 strings, but the app stores full
+// data URLs (so they can be rendered directly in <img src>) — strip the
+// `data:image/...;base64,` prefix only when building the wire payload.
+export function toOllamaMessage(message) {
+  if (!message.images || message.images.length === 0) {
+    return { role: message.role, content: message.content }
+  }
+  return {
+    role: message.role,
+    content: message.content,
+    images: message.images.map((dataUrl) => dataUrl.split(',').pop()),
+  }
+}
+
 export function formatRelativeTime(ts, now = Date.now()) {
   const min = Math.round((now - ts) / 60000)
   if (min < 1) return "à l'instant"

@@ -32,7 +32,9 @@ app.use(
   }),
 )
 
-app.use(express.json({ limit: '5mb' }))
+// 25mb to comfortably fit synced conversations containing base64-encoded
+// image attachments (a single photo can be several MB once base64-encoded).
+app.use(express.json({ limit: '25mb' }))
 
 app.get('/session', (req, res) => {
   if (!fs.existsSync(DATA_FILE)) return res.json(null)
