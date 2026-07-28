@@ -27,6 +27,10 @@ Browser ──/api/*──> Ollama (chat, streamed, no app backend in the path)
         └─/session─> Express (opt-in session sync only, server/index.js)
 ```
 
+For the full picture with diagrams — request flow, model routing, sync, deployment
+pipeline, and the production runtime topology — see
+[`docs/architecture.md`](./docs/architecture.md).
+
 Chat requests go straight from the browser to Ollama — in dev via Vite's proxy, in
 production via the Express server's own proxy middleware
 ([ADR-0005](./docs/adr/0005-direct-vite-proxy-to-ollama.md)). The Express server otherwise
