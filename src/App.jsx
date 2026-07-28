@@ -9,6 +9,7 @@ import {
   loadProfileName,
   loadServerSync,
   loadTheme,
+  loadVoiceMode,
   makeConversation,
   makeId,
   mostRecentId,
@@ -17,6 +18,7 @@ import {
   SERVER_SYNC_KEY,
   THEME_KEY,
   toOllamaMessage,
+  VOICE_MODE_KEY,
 } from './lib/conversations'
 import './App.css'
 
@@ -34,10 +36,16 @@ function App() {
   const [theme, setTheme] = useState(loadTheme)
   const [serverSync, setServerSync] = useState(loadServerSync)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [voiceMode, setVoiceMode] = useState(loadVoiceMode)
+  const [isListening, setIsListening] = useState(false)
   const listEndRef = useRef(null)
   const profileSectionRef = useRef(null)
   const syncedOnceRef = useRef(false)
   const fileInputRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const audioPlayerRef = useRef(null)
+  const wasStreamingRef = useRef(false)
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeId) ?? conversations[0] ?? null,
@@ -75,6 +83,49 @@ function App() {
   useEffect(() => {
     localStorage.setItem(SERVER_SYNC_KEY, String(serverSync))
   }, [serverSync])
+
+  useEffect(() => {
+    localStorage.setItem(VOICE_MODE_KEY, voiceMode)
+  }, [voiceMode])
+
+  // Leaving vocal mode mid-dictation or mid-playback should stop both rather
+  // than let them run on invisibly in the background.
+  useEffect(() => {
+    if (voiceMode === 'vocal') return
+    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+    audioPlayerRef.current?.pause()
+    setIsListening(false)
+  }, [voiceMode])
+
+  // Speak the assistant's reply (via the Piper TTS proxy) once streaming
+  // finishes, but only for a reply that just streamed in this session — not
+  // on mount/history load.
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming && voiceMode === 'vocal') {
+      const last = messages[messages.length - 1]
+      if (last?.role === 'assistant' && last.content) {
+        fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: last.content }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`TTS a répondu ${res.status}`)
+            return res.blob()
+          })
+          .then((blob) => {
+            const audio = audioPlayerRef.current
+            if (!audio) return
+            const url = URL.createObjectURL(blob)
+            audio.src = url
+            audio.onended = () => URL.revokeObjectURL(url)
+            audio.play()
+          })
+          .catch((err) => setError(`Erreur de synthèse vocale : ${err.message}`))
+      }
+    }
+    wasStreamingRef.current = isStreaming
+  }, [isStreaming, voiceMode, messages])
 
   useEffect(() => {
     if (!historyOpen) setProfileMenuOpen(false)
@@ -248,6 +299,50 @@ function App() {
     setAttachments((prev) => prev.filter((a) => a.id !== id))
   }
 
+  async function handleMicClick() {
+    if (isListening) {
+      mediaRecorderRef.current?.stop()
+      return
+    }
+
+    let stream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch {
+      setError("Le microphone n'est pas accessible.")
+      return
+    }
+
+    const recorder = new MediaRecorder(stream)
+    audioChunksRef.current = []
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunksRef.current.push(e.data)
+    }
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((track) => track.stop())
+      setIsListening(false)
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+      const formData = new FormData()
+      formData.append('audio_file', audioBlob, 'recording.webm')
+      try {
+        const res = await fetch('/api/stt?task=transcribe&language=fr&output=json', {
+          method: 'POST',
+          body: formData,
+        })
+        if (!res.ok) throw new Error(`STT a répondu ${res.status}`)
+        const data = await res.json()
+        const transcript = data.text?.trim()
+        if (transcript) setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+      } catch (err) {
+        setError(`Erreur de dictée : ${err.message}`)
+      }
+    }
+
+    mediaRecorderRef.current = recorder
+    recorder.start()
+    setIsListening(true)
+  }
+
   async function handleSend(e) {
     e.preventDefault()
     const userText = input.trim()
@@ -329,7 +424,15 @@ function App() {
           <h1>Ollama Chat</h1>
         </div>
         <div className="header-actions">
-          <span className="chat-badge">Chat</span>
+          <select
+            className="mode-select"
+            aria-label="Mode"
+            value={voiceMode}
+            onChange={(e) => setVoiceMode(e.target.value)}
+          >
+            <option value="text">Chat</option>
+            <option value="vocal">Vocal</option>
+          </select>
           <button
             type="button"
             className="new-chat-btn"
@@ -557,6 +660,21 @@ function App() {
             hidden
             onChange={handleAttachFiles}
           />
+          {voiceMode === 'vocal' && (
+            <button
+              type="button"
+              className={`icon-btn mic-btn ${isListening ? 'listening' : ''}`}
+              onClick={handleMicClick}
+              disabled={isStreaming}
+              aria-label={isListening ? 'Arrêter la dictée' : 'Dicter un message'}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+                <path d="M5 10a7 7 0 0 0 14 0"></path>
+                <line x1="12" y1="19" x2="12" y2="22"></line>
+              </svg>
+            </button>
+          )}
           <div className="input-wrap">
             <input
               value={input}
@@ -578,6 +696,7 @@ function App() {
           </div>
         </div>
       </form>
+      <audio ref={audioPlayerRef} hidden />
     </div>
   )
 }

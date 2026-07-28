@@ -7,6 +7,16 @@ export default defineConfig({
   server: {
     host: true,
     proxy: {
+      '/api/stt': {
+        target: 'http://192.168.1.245:9000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/stt/, '/asr'),
+      },
+      '/api/tts': {
+        target: 'http://192.168.1.246:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/tts/, '/tts'),
+      },
       '/api': {
         target: 'http://192.168.1.241:11434',
         changeOrigin: true,

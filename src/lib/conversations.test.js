@@ -9,6 +9,7 @@ import {
   loadProfileName,
   loadServerSync,
   loadTheme,
+  loadVoiceMode,
   makeConversation,
   makeId,
   mostRecentId,
@@ -19,6 +20,7 @@ import {
   THEME_KEY,
   toOllamaMessage,
   VISION_MODEL,
+  VOICE_MODE_KEY,
 } from './conversations'
 
 beforeEach(() => {
@@ -202,6 +204,19 @@ describe('loadServerSync', () => {
     expect(loadServerSync()).toBe(true)
     localStorage.setItem(SERVER_SYNC_KEY, 'false')
     expect(loadServerSync()).toBe(false)
+  })
+})
+
+describe('loadVoiceMode', () => {
+  it('defaults to text', () => {
+    expect(loadVoiceMode()).toBe('text')
+  })
+
+  it('returns vocal only when stored as exactly "vocal"', () => {
+    localStorage.setItem(VOICE_MODE_KEY, 'vocal')
+    expect(loadVoiceMode()).toBe('vocal')
+    localStorage.setItem(VOICE_MODE_KEY, 'something-else')
+    expect(loadVoiceMode()).toBe('text')
   })
 })
 

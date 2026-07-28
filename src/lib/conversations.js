@@ -3,6 +3,7 @@ export const CONVERSATIONS_KEY = 'ollama-chat-conversations'
 export const PROFILE_NAME_KEY = 'ollama-chat-profile-name'
 export const THEME_KEY = 'ollama-chat-theme'
 export const SERVER_SYNC_KEY = 'ollama-chat-server-sync'
+export const VOICE_MODE_KEY = 'ollama-chat-voice-mode'
 export const DEFAULT_PROFILE_NAME = 'Vous'
 
 // There is no model picker in the UI (single "Chat" mode): route to the
@@ -93,6 +94,14 @@ export function loadServerSync() {
     return localStorage.getItem(SERVER_SYNC_KEY) === 'true'
   } catch {
     return false
+  }
+}
+
+export function loadVoiceMode() {
+  try {
+    return localStorage.getItem(VOICE_MODE_KEY) === 'vocal' ? 'vocal' : 'text'
+  } catch {
+    return 'text'
   }
 }
 

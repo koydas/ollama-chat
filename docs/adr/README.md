@@ -13,3 +13,5 @@ Architecture Decision Records (ADR) for `ollama-chat`.
 - [ADR-0007: Dedicated MetalLB IP alongside the Ingress](./0007-dedicated-metallb-ip.md)
 - [ADR-0008: Image attachments stored as data URLs, converted to bare base64 at the Ollama boundary](./0008-image-attachments-as-data-urls.md)
 - [ADR-0009: Fixed "Chat" mode with automatic model routing, no model picker](./0009-fixed-chat-mode-automatic-model-routing.md)
+- [ADR-0010: Voice mode via the browser's native Web Speech API, no server involvement](./0010-browser-web-speech-api-for-voice-mode.md)
+- [ADR-0011: Server-side Whisper/Piper replace the Web Speech API for voice mode](./0011-server-side-stt-tts-whisper-piper.md)

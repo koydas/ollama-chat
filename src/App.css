@@ -90,14 +90,17 @@ select {
   text-overflow: ellipsis;
 }
 
-.chat-badge {
+.mode-select {
   padding: 0.4rem 0.8rem;
   border-radius: 999px;
   border: 1px solid var(--border);
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
   font-size: 0.9rem;
   font-weight: 600;
-  opacity: 0.8;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 select:focus {
@@ -611,6 +614,16 @@ select:focus {
 
 .attach-btn {
   flex-shrink: 0;
+}
+
+.mic-btn {
+  flex-shrink: 0;
+}
+
+.mic-btn.listening {
+  color: #fff;
+  background: #e0433d;
+  border-color: #e0433d;
 }
 
 .attachment-strip {

@@ -14,6 +14,9 @@ server, zero accounts.
   routes text-only messages to a text model and anything with an image to a vision model
   (see [ADR-0009](./docs/adr/0009-fixed-chat-mode-automatic-model-routing.md)).
 - **Light / dark / system theme**, overridable per profile.
+- **Vocal mode** — dictate messages via the microphone (self-hosted Whisper transcription)
+  and hear replies read aloud (self-hosted Piper synthesis), switched from the header dropdown
+  ([ADR-0011](./docs/adr/0011-server-side-stt-tts-whisper-piper.md)).
 - **Optional server-side sync** of conversations/profile/theme, off by default — the app is
   fully usable with `localStorage` alone and no backend running
   ([ADR-0001](./docs/adr/0001-local-first-storage-with-opt-in-sync.md)).

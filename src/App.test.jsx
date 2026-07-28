@@ -1,8 +1,24 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { CONVERSATIONS_KEY, PROFILE_NAME_KEY, THEME_KEY } from './lib/conversations'
+import { CONVERSATIONS_KEY, PROFILE_NAME_KEY, THEME_KEY, VOICE_MODE_KEY } from './lib/conversations'
+
+class FakeMediaRecorder {
+  constructor(stream) {
+    this.stream = stream
+    FakeMediaRecorder.instances.push(this)
+  }
+  start() {
+    this.state = 'recording'
+  }
+  stop() {
+    this.state = 'inactive'
+    this.ondataavailable?.({ data: new Blob(['fake-audio']) })
+    this.onstop?.()
+  }
+}
+FakeMediaRecorder.instances = []
 
 const MODELS_RESPONSE = {
   models: [
@@ -23,7 +39,7 @@ function streamResponse(chunks) {
   return new Response(stream, { status: 200 })
 }
 
-function mockFetch({ chatChunks } = {}) {
+function mockFetch({ chatChunks, sttText } = {}) {
   return vi.fn((url) => {
     if (url === '/api/tags') {
       return Promise.resolve(new Response(JSON.stringify(MODELS_RESPONSE), { status: 200 }))
@@ -31,12 +47,30 @@ function mockFetch({ chatChunks } = {}) {
     if (url === '/api/chat') {
       return Promise.resolve(streamResponse(chatChunks ?? ['{"message":{"content":"Bonjour"}}\n']))
     }
+    if (typeof url === 'string' && url.startsWith('/api/stt')) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ text: sttText ?? 'bonjour tout le monde' }), { status: 200 }),
+      )
+    }
+    if (url === '/api/tts') {
+      return Promise.resolve(new Response(new Blob(['fake-wav'], { type: 'audio/wav' }), { status: 200 }))
+    }
     return Promise.reject(new Error(`unexpected fetch: ${url}`))
   })
 }
 
 beforeEach(() => {
   localStorage.clear()
+  FakeMediaRecorder.instances.length = 0
+  vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [] }) },
+  })
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fake')
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
 })
 
 afterEach(() => {
@@ -45,12 +79,15 @@ afterEach(() => {
 })
 
 describe('App', () => {
-  it('shows the fixed "Chat" label instead of a model picker', async () => {
+  it('shows the header mode selector defaulting to Chat, no model picker', async () => {
     vi.stubGlobal('fetch', mockFetch())
     render(<App />)
 
-    expect(await screen.findByText('Chat')).toBeInTheDocument()
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    await screen.findByText('Chat')
+    const modeSelect = screen.getByRole('combobox', { name: 'Mode' })
+    expect(modeSelect).toHaveValue('text')
+    expect(screen.getByRole('option', { name: 'Chat' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Vocal' })).toBeInTheDocument()
   })
 
   it('sends a message and displays the streamed assistant reply, using the text model', async () => {
@@ -286,5 +323,95 @@ describe('profile', () => {
       expect(remaining[0].messages).toEqual([])
     })
     expect(screen.queryByText('question A')).not.toBeInTheDocument()
+  })
+})
+
+describe('voice mode', () => {
+  async function switchToVocal(user) {
+    await screen.findByText('Chat')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Mode' }), 'vocal')
+  }
+
+  it('shows a mic button only once the header mode is set to Vocal, and persists the choice', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', mockFetch())
+    render(<App />)
+
+    await screen.findByText('Chat')
+    expect(screen.queryByRole('button', { name: 'Dicter un message' })).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Mode' }), 'vocal')
+
+    expect(screen.getByRole('button', { name: 'Dicter un message' })).toBeInTheDocument()
+    expect(localStorage.getItem(VOICE_MODE_KEY)).toBe('vocal')
+  })
+
+  it('dictates a message into the input via MediaRecorder + /api/stt', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    await switchToVocal(user)
+
+    await user.click(screen.getByRole('button', { name: 'Dicter un message' }))
+    await waitFor(() => expect(FakeMediaRecorder.instances).toHaveLength(1))
+    expect(screen.getByRole('button', { name: 'Arrêter la dictée' })).toBeInTheDocument()
+
+    act(() => {
+      FakeMediaRecorder.instances[0].stop()
+    })
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Type a message...')).toHaveValue('bonjour tout le monde'),
+    )
+    expect(screen.getByRole('button', { name: 'Dicter un message' })).toBeInTheDocument()
+
+    const sttCall = fetchMock.mock.calls.find((c) => typeof c[0] === 'string' && c[0].startsWith('/api/stt'))
+    expect(sttCall).toBeTruthy()
+    expect(sttCall[1].body).toBeInstanceOf(FormData)
+  })
+
+  it('shows an error banner when the microphone is not accessible', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', mockFetch())
+    render(<App />)
+    await switchToVocal(user)
+    navigator.mediaDevices.getUserMedia.mockRejectedValueOnce(new Error('denied'))
+
+    await user.click(screen.getByRole('button', { name: 'Dicter un message' }))
+
+    expect(await screen.findByText(/microphone n'est pas accessible/)).toBeInTheDocument()
+  })
+
+  it('plays the synthesized reply once streaming finishes', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockFetch({
+      chatChunks: ['{"message":{"content":"Bonjour"}}\n', '{"message":{"content":" !"}}\n'],
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    await switchToVocal(user)
+
+    await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled())
+
+    const ttsCall = fetchMock.mock.calls.find((c) => c[0] === '/api/tts')
+    expect(JSON.parse(ttsCall[1].body)).toEqual({ text: 'Bonjour !' })
+  })
+
+  it('does not call /api/tts when back in text mode', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockFetch({ chatChunks: ['{"message":{"content":"Bonjour"}}\n'] })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    await screen.findByText('Chat')
+    await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(screen.getByText('Bonjour')).toBeInTheDocument())
+
+    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/tts')).toBe(false)
   })
 })

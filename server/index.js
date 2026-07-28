@@ -9,12 +9,34 @@ const DATA_DIR = path.join(__dirname, 'data')
 const DATA_FILE = path.join(DATA_DIR, 'session.json')
 const DIST_DIR = path.join(__dirname, '..', 'dist')
 
-// In-cluster Ollama service (see gitops-homelab). Only used when this server
-// fronts the built static app in production — local dev talks to Ollama via
-// Vite's own proxy instead, so this route is dormant under `npm run dev:all`.
+// In-cluster services (see gitops-homelab). Only used when this server fronts
+// the built static app in production — local dev talks to them via Vite's own
+// proxy instead, so these routes are dormant under `npm run dev:all`.
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama.ollama.svc.cluster.local:11434'
+const WHISPER_URL = process.env.WHISPER_URL || 'http://whisper.whisper.svc.cluster.local:9000'
+const PIPER_URL = process.env.PIPER_URL || 'http://piper.piper.svc.cluster.local:8000'
 
 const app = express()
+
+// /api/stt and /api/tts are registered before the general /api proxy below,
+// since that one matches by prefix and would otherwise swallow these first.
+app.use(
+  createProxyMiddleware({
+    pathFilter: '/api/stt',
+    target: WHISPER_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/api/stt': '/asr' },
+  }),
+)
+
+app.use(
+  createProxyMiddleware({
+    pathFilter: '/api/tts',
+    target: PIPER_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/api/tts': '/tts' },
+  }),
+)
 
 // Mounted at the app root (not app.use('/api', ...)) with pathFilter instead:
 // Express strips the mount path from req.url, which would forward requests
