@@ -8,16 +8,17 @@ import {
   loadConversations,
   loadProfileName,
   loadServerSync,
-  loadStoredModel,
   loadTheme,
   makeConversation,
   makeId,
-  MODEL_STORAGE_KEY,
   mostRecentId,
+  pickModel,
   PROFILE_NAME_KEY,
   SERVER_SYNC_KEY,
+  TEXT_MODEL,
   THEME_KEY,
   toOllamaMessage,
+  VISION_MODEL,
 } from './conversations'
 
 beforeEach(() => {
@@ -61,18 +62,12 @@ describe('deriveTitle', () => {
 })
 
 describe('makeConversation', () => {
-  it('creates an empty conversation with the given model', () => {
-    const conv = makeConversation('llama3.1:8b-instruct-q4_0')
-    expect(conv.model).toBe('llama3.1:8b-instruct-q4_0')
+  it('creates an empty conversation', () => {
+    const conv = makeConversation()
     expect(conv.title).toBe('')
     expect(conv.messages).toEqual([])
     expect(typeof conv.id).toBe('string')
     expect(typeof conv.updatedAt).toBe('number')
-  })
-
-  it('defaults model to an empty string when none is given', () => {
-    expect(makeConversation().model).toBe('')
-    expect(makeConversation('').model).toBe('')
   })
 })
 
@@ -150,14 +145,21 @@ describe('mostRecentId', () => {
   })
 })
 
-describe('loadStoredModel', () => {
-  it('returns an empty string when nothing is stored', () => {
-    expect(loadStoredModel()).toBe('')
+describe('pickModel', () => {
+  it('picks the text model when no message has images', () => {
+    expect(pickModel([{ role: 'user', content: 'salut' }])).toBe(TEXT_MODEL)
   })
 
-  it('returns the stored model name', () => {
-    localStorage.setItem(MODEL_STORAGE_KEY, 'qwen2.5-coder:7b-instruct-q4_0')
-    expect(loadStoredModel()).toBe('qwen2.5-coder:7b-instruct-q4_0')
+  it('picks the vision model when any message carries images', () => {
+    const messages = [
+      { role: 'user', content: 'salut' },
+      { role: 'user', content: "qu'est-ce que c'est ?", images: ['data:image/png;base64,AAAA'] },
+    ]
+    expect(pickModel(messages)).toBe(VISION_MODEL)
+  })
+
+  it('treats an empty images array as no images', () => {
+    expect(pickModel([{ role: 'user', content: 'salut', images: [] }])).toBe(TEXT_MODEL)
   })
 })
 

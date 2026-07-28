@@ -1,10 +1,19 @@
 export const LEGACY_MESSAGES_KEY = 'ollama-chat-messages'
 export const CONVERSATIONS_KEY = 'ollama-chat-conversations'
-export const MODEL_STORAGE_KEY = 'ollama-chat-selected-model'
 export const PROFILE_NAME_KEY = 'ollama-chat-profile-name'
 export const THEME_KEY = 'ollama-chat-theme'
 export const SERVER_SYNC_KEY = 'ollama-chat-server-sync'
 export const DEFAULT_PROFILE_NAME = 'Vous'
+
+// There is no model picker in the UI (single "Chat" mode): route to the
+// vision model whenever the request carries images, the lighter text-only
+// model otherwise.
+export const TEXT_MODEL = 'llama3.1:8b-instruct-q4_0'
+export const VISION_MODEL = 'qwen2.5vl:3b'
+
+export function pickModel(messages) {
+  return messages.some((m) => m.images && m.images.length > 0) ? VISION_MODEL : TEXT_MODEL
+}
 
 export function makeId() {
   return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -19,8 +28,8 @@ export function deriveTitle(messages) {
   return text.length > 42 ? `${text.slice(0, 42)}…` : text
 }
 
-export function makeConversation(model) {
-  return { id: makeId(), title: '', messages: [], model: model || '', updatedAt: Date.now() }
+export function makeConversation() {
+  return { id: makeId(), title: '', messages: [], updatedAt: Date.now() }
 }
 
 export function loadConversations() {
@@ -45,7 +54,6 @@ export function loadConversations() {
             id: makeId(),
             title: deriveTitle(legacyMessages),
             messages: legacyMessages,
-            model: '',
             updatedAt: Date.now(),
           },
         ]
@@ -61,14 +69,6 @@ export function loadConversations() {
 export function mostRecentId(conversations) {
   if (conversations.length === 0) return null
   return conversations.reduce((latest, c) => (c.updatedAt > latest.updatedAt ? c : latest), conversations[0]).id
-}
-
-export function loadStoredModel() {
-  try {
-    return localStorage.getItem(MODEL_STORAGE_KEY) || ''
-  } catch {
-    return ''
-  }
 }
 
 export function loadProfileName() {

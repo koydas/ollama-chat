@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -45,29 +45,31 @@ afterEach(() => {
 })
 
 describe('App', () => {
-  it('loads the model list and selects llama by default', async () => {
+  it('shows the fixed "Chat" label instead of a model picker', async () => {
     vi.stubGlobal('fetch', mockFetch())
     render(<App />)
 
-    const select = await screen.findByRole('combobox')
-    await waitFor(() => expect(select.value).toBe('llama3.1:8b-instruct-q4_0'))
-    expect(within(select).getAllByRole('option')).toHaveLength(3)
+    expect(await screen.findByText('Chat')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 
-  it('sends a message and displays the streamed assistant reply', async () => {
+  it('sends a message and displays the streamed assistant reply, using the text model', async () => {
     const user = userEvent.setup()
-    vi.stubGlobal(
-      'fetch',
-      mockFetch({ chatChunks: ['{"message":{"content":"Bonjour"}}\n', '{"message":{"content":" !"}}\n'] }),
-    )
+    const fetchMock = mockFetch({
+      chatChunks: ['{"message":{"content":"Bonjour"}}\n', '{"message":{"content":" !"}}\n'],
+    })
+    vi.stubGlobal('fetch', fetchMock)
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
     await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
     await user.click(screen.getByRole('button', { name: 'Send' }))
 
     expect(await screen.findByText('salut')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('Bonjour !')).toBeInTheDocument())
+
+    const chatCall = fetchMock.mock.calls.find((c) => c[0] === '/api/chat')
+    expect(JSON.parse(chatCall[1].body).model).toBe('llama3.1:8b-instruct-q4_0')
   })
 
   it('creates a new conversation and keeps the old one in history', async () => {
@@ -75,7 +77,7 @@ describe('App', () => {
     vi.stubGlobal('fetch', mockFetch({ chatChunks: ['{"message":{"content":"salut !"}}\n'] }))
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
     await user.type(screen.getByPlaceholderText('Type a message...'), 'premiere question')
     await user.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(screen.getByText('salut !')).toBeInTheDocument())
@@ -97,7 +99,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
     expect(screen.getByText('question B')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Historique des conversations' }))
@@ -118,7 +120,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
     await user.click(screen.getByRole('button', { name: 'Historique des conversations' }))
     // Sorted by most recent first: "Conversation B" is first, "Conversation A" second.
     const deleteButtons = screen.getAllByRole('button', { name: 'Supprimer la conversation' })
@@ -147,7 +149,7 @@ describe('App', () => {
     vi.stubGlobal('fetch', fetchMock)
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
     await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
     await user.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(screen.getByText('Bonjour')).toBeInTheDocument())
@@ -174,7 +176,7 @@ describe('App', () => {
     vi.stubGlobal('fetch', fetchMock)
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
     await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
     await user.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(screen.getByText('Bonjour')).toBeInTheDocument())
@@ -196,7 +198,7 @@ describe('App', () => {
     vi.stubGlobal('fetch', fetchMock)
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
 
     const file = new File(['fake-image-bytes'], 'chat.png', { type: 'image/png' })
     const fileInput = document.querySelector('input[type="file"]')
@@ -209,10 +211,12 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByText('Une photo de chat')).toBeInTheDocument())
 
     const chatCall = fetchMock.mock.calls.find((c) => c[0] === '/api/chat')
-    const sentMessage = JSON.parse(chatCall[1].body).messages[0]
+    const body = JSON.parse(chatCall[1].body)
+    const sentMessage = body.messages[0]
     expect(sentMessage.content).toBe("qu'est-ce que c'est ?")
     expect(sentMessage.images).toHaveLength(1)
     expect(sentMessage.images[0]).not.toMatch(/^data:/)
+    expect(body.model).toBe('qwen2.5vl:3b')
   })
 
   it('shows an error banner when Ollama cannot be reached', async () => {
@@ -232,7 +236,7 @@ describe('profile', () => {
     vi.stubGlobal('fetch', mockFetch())
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
     await user.click(screen.getByRole('button', { name: 'Historique des conversations' }))
     await user.click(screen.getByRole('button', { name: 'Profil' }))
 
@@ -249,7 +253,7 @@ describe('profile', () => {
     vi.stubGlobal('fetch', mockFetch())
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
     await user.click(screen.getByRole('button', { name: 'Historique des conversations' }))
     await user.click(screen.getByRole('button', { name: 'Profil' }))
 
@@ -269,7 +273,7 @@ describe('profile', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await screen.findByRole('combobox')
+    await screen.findByText('Chat')
     expect(screen.getByText('question A')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Historique des conversations' }))

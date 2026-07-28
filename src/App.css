@@ -90,6 +90,16 @@ select {
   text-overflow: ellipsis;
 }
 
+.chat-badge {
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
 select:focus {
   outline: none;
   border-color: var(--accent);

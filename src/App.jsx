@@ -8,12 +8,11 @@ import {
   loadConversations,
   loadProfileName,
   loadServerSync,
-  loadStoredModel,
   loadTheme,
   makeConversation,
   makeId,
-  MODEL_STORAGE_KEY,
   mostRecentId,
+  pickModel,
   PROFILE_NAME_KEY,
   SERVER_SYNC_KEY,
   THEME_KEY,
@@ -22,8 +21,6 @@ import {
 import './App.css'
 
 function App() {
-  const [models, setModels] = useState([])
-  const [selectedModel, setSelectedModel] = useState(loadStoredModel)
   const [conversations, setConversations] = useState(loadConversations)
   const [activeId, setActiveId] = useState(() => mostRecentId(loadConversations()))
   const [input, setInput] = useState('')
@@ -48,20 +45,11 @@ function App() {
   )
   const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation])
 
+  // No model picker: this just confirms Ollama is reachable at startup.
   useEffect(() => {
     fetch('/api/tags')
       .then((res) => {
-        if (!res.ok) throw new Error(`Failed to list models: ${res.status}`)
-        return res.json()
-      })
-      .then((data) => {
-        const names = (data.models || []).map((m) => m.name)
-        setModels(names)
-        setSelectedModel((prev) => {
-          if (prev && names.includes(prev)) return prev
-          const llama = names.find((n) => n.toLowerCase().includes('llama'))
-          return llama || names[0] || ''
-        })
+        if (!res.ok) throw new Error(`Failed to reach Ollama: ${res.status}`)
       })
       .catch((err) => setError(`Could not reach Ollama: ${err.message}`))
   }, [])
@@ -73,10 +61,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations))
   }, [conversations])
-
-  useEffect(() => {
-    if (selectedModel) localStorage.setItem(MODEL_STORAGE_KEY, selectedModel)
-  }, [selectedModel])
 
   useEffect(() => {
     localStorage.setItem(PROFILE_NAME_KEY, profileName)
@@ -143,13 +127,13 @@ function App() {
 
   useEffect(() => {
     if (conversations.length === 0) {
-      const conv = makeConversation(selectedModel)
+      const conv = makeConversation()
       setConversations([conv])
       setActiveId(conv.id)
     } else if (!activeId || !conversations.some((c) => c.id === activeId)) {
       setActiveId(mostRecentId(conversations))
     }
-  }, [conversations, activeId, selectedModel])
+  }, [conversations, activeId])
 
   function setConversationMessages(id, updater) {
     setConversations((prev) =>
@@ -168,7 +152,7 @@ function App() {
 
   function handleNewConversation() {
     if (isStreaming) return
-    const conv = makeConversation(selectedModel)
+    const conv = makeConversation()
     setConversations((prev) => [conv, ...prev])
     setActiveId(conv.id)
     setHistoryOpen(false)
@@ -176,8 +160,6 @@ function App() {
 
   function handleSelectConversation(id) {
     setActiveId(id)
-    const conv = conversations.find((c) => c.id === id)
-    if (conv?.model && models.includes(conv.model)) setSelectedModel(conv.model)
     setHistoryOpen(false)
   }
 
@@ -207,7 +189,7 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: selectedModel,
+          model: pickModel(messagesForModel),
           messages: messagesForModel.map(toOllamaMessage),
           stream: true,
         }),
@@ -269,7 +251,7 @@ function App() {
   async function handleSend(e) {
     e.preventDefault()
     const userText = input.trim()
-    if ((!userText && attachments.length === 0) || isStreaming || !selectedModel || !activeConversation) return
+    if ((!userText && attachments.length === 0) || isStreaming || !activeConversation) return
 
     const convId = activeConversation.id
     const images = attachments.map((a) => a.dataUrl)
@@ -279,7 +261,7 @@ function App() {
       prev.map((c) => {
         if (c.id !== convId) return c
         const msgs = [...newMessages, { role: 'assistant', content: '' }]
-        return { ...c, messages: msgs, model: selectedModel, title: c.title || deriveTitle(msgs), updatedAt: Date.now() }
+        return { ...c, messages: msgs, title: c.title || deriveTitle(msgs), updatedAt: Date.now() }
       }),
     )
     setInput('')
@@ -347,18 +329,7 @@ function App() {
           <h1>Ollama Chat</h1>
         </div>
         <div className="header-actions">
-          <select
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            disabled={isStreaming || models.length === 0}
-          >
-            {models.length === 0 && <option>No models found</option>}
-            {models.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+          <span className="chat-badge">Chat</span>
           <button
             type="button"
             className="new-chat-btn"
@@ -596,7 +567,7 @@ function App() {
             <button
               type="submit"
               className="send-btn"
-              disabled={isStreaming || (!input.trim() && attachments.length === 0) || !selectedModel}
+              disabled={isStreaming || (!input.trim() && attachments.length === 0)}
               aria-label="Send"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
