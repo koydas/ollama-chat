@@ -3,6 +3,14 @@ kind: Ingress
 metadata:
   name: ollama-chat
 spec:
+  tls:
+    # ollama-chat-tls is a self-signed cert created once out-of-band (never
+    # committed to Git — see docs/adr/0012). Needed because getUserMedia
+    # (mic access for vocal mode) requires a secure context; plain HTTP over
+    # the LAN doesn't qualify.
+    - hosts:
+        - ollama-chat.home
+      secretName: ollama-chat-tls
   rules:
     - host: ollama-chat.home
       http:

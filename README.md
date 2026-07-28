@@ -16,7 +16,9 @@ server, zero accounts.
 - **Light / dark / system theme**, overridable per profile.
 - **Vocal mode** — dictate messages via the microphone (self-hosted Whisper transcription)
   and hear replies read aloud (self-hosted Piper synthesis), switched from the header dropdown
-  ([ADR-0011](./docs/adr/0011-server-side-stt-tts-whisper-piper.md)).
+  ([ADR-0011](./docs/adr/0011-server-side-stt-tts-whisper-piper.md)). Requires HTTPS
+  (`https://ollama-chat.home`) — mic access needs a secure context
+  ([ADR-0012](./docs/adr/0012-self-signed-tls-for-secure-context.md)).
 - **Optional server-side sync** of conversations/profile/theme, off by default — the app is
   fully usable with `localStorage` alone and no backend running
   ([ADR-0001](./docs/adr/0001-local-first-storage-with-opt-in-sync.md)).
@@ -88,9 +90,12 @@ into `k8s/deployment.yaml` — that commit is what ArgoCD syncs on.
 
 Reachable at:
 - **http://192.168.1.244** — dedicated MetalLB IP, works with no client-side setup
-  ([ADR-0007](./docs/adr/0007-dedicated-metallb-ip.md))
-- **http://ollama-chat.home** — via the shared `ingress-nginx` at `192.168.1.243`, needs a
-  `/etc/hosts` entry pointing at it
+  ([ADR-0007](./docs/adr/0007-dedicated-metallb-ip.md)). Plain HTTP only — **vocal mode's mic
+  input won't work here** (see below).
+- **https://ollama-chat.home** — via the shared `ingress-nginx` at `192.168.1.243`, needs a
+  `/etc/hosts` entry pointing at it. Self-signed cert (click through the browser warning once
+  per device) — this is the route to use for vocal mode, since `getUserMedia` requires a
+  secure context ([ADR-0012](./docs/adr/0012-self-signed-tls-for-secure-context.md)).
 
 ## Architecture decisions
 
