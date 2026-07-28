@@ -131,6 +131,65 @@ describe('App', () => {
     })
   })
 
+  it('edits a user message, drops the old reply and regenerates it', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn((url, opts) => {
+      if (url === '/api/tags') {
+        return Promise.resolve(new Response(JSON.stringify(MODELS_RESPONSE), { status: 200 }))
+      }
+      if (url === '/api/chat') {
+        const { messages } = JSON.parse(opts.body)
+        const reply = messages[messages.length - 1].content === 'salut corrigé' ? 'nouvelle réponse' : 'Bonjour'
+        return Promise.resolve(streamResponse([`{"message":{"content":"${reply}"}}\n`]))
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    await screen.findByRole('combobox')
+    await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(screen.getByText('Bonjour')).toBeInTheDocument())
+
+    await user.click(screen.getAllByRole('button', { name: 'Modifier le message' })[0])
+    const textarea = screen.getByDisplayValue('salut')
+    await user.clear(textarea)
+    await user.type(textarea, 'salut corrigé')
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et régénérer' }))
+
+    expect(await screen.findByText('salut corrigé')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('nouvelle réponse')).toBeInTheDocument())
+    expect(screen.queryByText('salut')).not.toBeInTheDocument()
+    expect(screen.queryByText('Bonjour')).not.toBeInTheDocument()
+
+    const chatCalls = fetchMock.mock.calls.filter((c) => c[0] === '/api/chat')
+    expect(chatCalls).toHaveLength(2)
+    expect(JSON.parse(chatCalls[1][1].body).messages).toEqual([{ role: 'user', content: 'salut corrigé' }])
+  })
+
+  it('edits an assistant message without triggering a new request', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockFetch({ chatChunks: ['{"message":{"content":"Bonjour"}}\n'] })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    await screen.findByRole('combobox')
+    await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(screen.getByText('Bonjour')).toBeInTheDocument())
+
+    const editButtons = screen.getAllByRole('button', { name: 'Modifier le message' })
+    await user.click(editButtons[1])
+    const textarea = screen.getByDisplayValue('Bonjour')
+    await user.clear(textarea)
+    await user.type(textarea, 'Bonjour corrigé')
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+
+    expect(await screen.findByText('Bonjour corrigé')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter((c) => c[0] === '/api/chat')).toHaveLength(1)
+  })
+
   it('shows an error banner when Ollama cannot be reached', async () => {
     vi.stubGlobal(
       'fetch',

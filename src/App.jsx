@@ -28,6 +28,8 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState('')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [editingIndex, setEditingIndex] = useState(null)
+  const [editingText, setEditingText] = useState('')
   const [profileName, setProfileName] = useState(loadProfileName)
   const [theme, setTheme] = useState(loadTheme)
   const [serverSync, setServerSync] = useState(loadServerSync)
@@ -189,31 +191,20 @@ function App() {
     setProfileMenuOpen(false)
   }
 
-  async function handleSend(e) {
-    e.preventDefault()
-    const userText = input.trim()
-    if (!userText || isStreaming || !selectedModel || !activeConversation) return
-
-    const convId = activeConversation.id
+  // Sends `messagesForModel` to Ollama and streams the reply into the
+  // conversation's last message, which must already be the empty assistant
+  // placeholder. Shared by handleSend and edit-triggered regeneration so
+  // both paths stream and error-handle identically.
+  async function streamReply(convId, messagesForModel) {
     setError('')
-    const newMessages = [...messages, { role: 'user', content: userText }]
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id !== convId) return c
-        const msgs = [...newMessages, { role: 'assistant', content: '' }]
-        return { ...c, messages: msgs, model: selectedModel, title: c.title || deriveTitle(msgs), updatedAt: Date.now() }
-      }),
-    )
-    setInput('')
     setIsStreaming(true)
-
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: selectedModel,
-          messages: newMessages,
+          messages: messagesForModel,
           stream: true,
         }),
       })
@@ -252,6 +243,63 @@ function App() {
       setError(`Error: ${err.message}`)
     } finally {
       setIsStreaming(false)
+    }
+  }
+
+  async function handleSend(e) {
+    e.preventDefault()
+    const userText = input.trim()
+    if (!userText || isStreaming || !selectedModel || !activeConversation) return
+
+    const convId = activeConversation.id
+    const newMessages = [...messages, { role: 'user', content: userText }]
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id !== convId) return c
+        const msgs = [...newMessages, { role: 'assistant', content: '' }]
+        return { ...c, messages: msgs, model: selectedModel, title: c.title || deriveTitle(msgs), updatedAt: Date.now() }
+      }),
+    )
+    setInput('')
+    await streamReply(convId, newMessages)
+  }
+
+  function handleEditStart(i) {
+    if (isStreaming) return
+    setEditingIndex(i)
+    setEditingText(messages[i].content)
+  }
+
+  function handleEditCancel() {
+    setEditingIndex(null)
+    setEditingText('')
+  }
+
+  // Edits the message at index i and discards everything after it, since
+  // later messages were replies to content that no longer exists. Editing a
+  // user message also re-asks the model, replacing the old assistant reply;
+  // editing an assistant message just rewrites history in place.
+  async function handleEditSave(i) {
+    const text = editingText.trim()
+    if (!text || !activeConversation) return
+
+    const convId = activeConversation.id
+    const editedRole = messages[i].role
+    const truncated = [...messages.slice(0, i), { role: editedRole, content: text }]
+    setEditingIndex(null)
+    setEditingText('')
+
+    if (editedRole === 'user') {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== convId) return c
+          const msgs = [...truncated, { role: 'assistant', content: '' }]
+          return { ...c, messages: msgs, updatedAt: Date.now() }
+        }),
+      )
+      await streamReply(convId, truncated)
+    } else {
+      setConversationMessages(convId, () => truncated)
     }
   }
 
@@ -405,10 +453,52 @@ function App() {
       <div className="message-list">
         {messages.map((msg, i) => {
           const isPending = isStreaming && i === messages.length - 1 && msg.content === ''
+          const isEditing = editingIndex === i
           return (
-            <div key={i} className={`message ${msg.role}`}>
-              <span className="role-label">{msg.role === 'user' ? 'You' : 'Assistant'}</span>
-              {isPending ? (
+            <div key={i} className={`message ${msg.role} ${isEditing ? 'editing' : ''}`}>
+              <div className="message-head">
+                <span className="role-label">{msg.role === 'user' ? 'You' : 'Assistant'}</span>
+                {!isEditing && !isPending && (
+                  <button
+                    type="button"
+                    className="message-edit-btn"
+                    onClick={() => handleEditStart(i)}
+                    disabled={isStreaming}
+                    aria-label="Modifier le message"
+                  >
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 20h9"></path>
+                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {isEditing ? (
+                <div className="message-edit">
+                  <textarea
+                    value={editingText}
+                    onChange={(e) => setEditingText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleEditSave(i)
+                      } else if (e.key === 'Escape') {
+                        handleEditCancel()
+                      }
+                    }}
+                    autoFocus
+                    rows={Math.min(10, Math.max(2, editingText.split('\n').length))}
+                  />
+                  <div className="message-edit-actions">
+                    <button type="button" onClick={handleEditCancel}>
+                      Annuler
+                    </button>
+                    <button type="button" className="primary" onClick={() => handleEditSave(i)} disabled={!editingText.trim()}>
+                      Enregistrer{msg.role === 'user' ? ' et régénérer' : ''}
+                    </button>
+                  </div>
+                </div>
+              ) : isPending ? (
                 <span className="typing-indicator">
                   <span></span>
                   <span></span>
