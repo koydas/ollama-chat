@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-chat
+spec:
+  selector:
+    app: ollama-chat
+  ports:
+    - port: 80
+      targetPort: 8080

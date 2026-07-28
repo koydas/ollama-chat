@@ -9,3 +9,4 @@ Architecture Decision Records (ADR) for `ollama-chat`.
 - [ADR-0003: No authentication — single implicit local profile](./0003-no-authentication-single-implicit-profile.md)
 - [ADR-0004: Manual theme override via CSS custom properties and `data-theme`](./0004-manual-theme-override.md)
 - [ADR-0005: Direct Vite proxy to Ollama for chat (no chat backend)](./0005-direct-vite-proxy-to-ollama.md)
+- [ADR-0006: GitOps deployment via GHCR image + CI-committed tag bump](./0006-gitops-deployment-via-ghcr.md)

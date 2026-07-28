@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-chat
+  labels:
+    app: ollama-chat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama-chat
+  template:
+    metadata:
+      labels:
+        app: ollama-chat
+    spec:
+      containers:
+        - name: ollama-chat
+          # Tag is rewritten to the built commit SHA by the docker-publish
+          # workflow on every push to main; see docs/adr/0006.
+          image: ghcr.io/koydas/ollama-chat:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: session-data
+              mountPath: /app/server/data
+      volumes:
+        - name: session-data
+          persistentVolumeClaim:
+            claimName: ollama-chat-session
