@@ -2,7 +2,13 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ollama-chat
+  annotations:
+    # Dedicated MetalLB IP for zero-config access (no /etc/hosts entry
+    # needed), alongside the Ingress. Next free slot after .240 (argocd),
+    # .241 (ollama), .242 (grafana), .243 (ingress-nginx) -- see docs/adr/0007.
+    metallb.io/loadBalancerIPs: "192.168.1.244"
 spec:
+  type: LoadBalancer
   selector:
     app: ollama-chat
   ports:

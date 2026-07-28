@@ -20,3 +20,7 @@ Runs on the homelab microk8s cluster via ArgoCD, managed from
 On every push to `main`, `.github/workflows/docker-publish.yml` builds the image, pushes it
 to `ghcr.io/koydas/ollama-chat:<sha>`, and commits the new tag into `k8s/deployment.yaml` —
 that commit is what ArgoCD syncs on. See [docs/adr/0006](./docs/adr/0006-gitops-deployment-via-ghcr.md).
+
+Reachable at:
+- **http://192.168.1.244** — dedicated MetalLB IP, works with no client-side setup (see [docs/adr/0007](./docs/adr/0007-dedicated-metallb-ip.md))
+- **http://ollama-chat.home** — via the shared `ingress-nginx` at `192.168.1.243`, needs a `/etc/hosts` entry pointing at it
