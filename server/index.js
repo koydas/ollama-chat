@@ -16,9 +16,12 @@ const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama.ollama.svc.cluster.l
 
 const app = express()
 
+// Mounted at the app root (not app.use('/api', ...)) with pathFilter instead:
+// Express strips the mount path from req.url, which would forward requests
+// to Ollama with the /api prefix missing (e.g. /api/tags -> /tags -> 404).
 app.use(
-  '/api',
   createProxyMiddleware({
+    pathFilter: '/api',
     target: OLLAMA_URL,
     changeOrigin: true,
     on: {
