@@ -11,3 +11,5 @@ Architecture Decision Records (ADR) for `ollama-chat`.
 - [ADR-0005: Direct Vite proxy to Ollama for chat (no chat backend)](./0005-direct-vite-proxy-to-ollama.md)
 - [ADR-0006: GitOps deployment via GHCR image + CI-committed tag bump](./0006-gitops-deployment-via-ghcr.md)
 - [ADR-0007: Dedicated MetalLB IP alongside the Ingress](./0007-dedicated-metallb-ip.md)
+- [ADR-0008: Image attachments stored as data URLs, converted to bare base64 at the Ollama boundary](./0008-image-attachments-as-data-urls.md)
+- [ADR-0009: Fixed "Chat" mode with automatic model routing, no model picker](./0009-fixed-chat-mode-automatic-model-routing.md)
