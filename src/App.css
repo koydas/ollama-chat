@@ -668,9 +668,6 @@ select:focus {
 }
 
 .mic-btn.listening {
-  color: #fff;
-  background: #e0433d;
-  border-color: #e0433d;
   animation: mic-beat 1s ease-in-out infinite;
 }
 
