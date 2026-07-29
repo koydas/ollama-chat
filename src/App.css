@@ -674,7 +674,7 @@ select:focus {
 }
 
 .mic-btn.transcribing {
-  color: var(--accent);
+  color: #fff;
 }
 
 .attachment-strip {

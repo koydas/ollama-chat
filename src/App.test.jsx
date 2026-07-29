@@ -346,6 +346,24 @@ describe('voice mode', () => {
     expect(localStorage.getItem(VOICE_MODE_KEY)).toBe('vocal')
   })
 
+  it('swaps the mic icon for the send icon once text is typed, and back once cleared', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', mockFetch())
+    render(<App />)
+    await switchToVocal(user)
+
+    expect(screen.getByRole('button', { name: 'Dicter un message' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Dicter un message' })).not.toBeInTheDocument()
+
+    await user.clear(screen.getByPlaceholderText('Type a message...'))
+    expect(screen.getByRole('button', { name: 'Dicter un message' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
+  })
+
   it('dictates a message via MediaRecorder + /api/stt and sends it automatically', async () => {
     const user = userEvent.setup()
     const fetchMock = mockFetch()

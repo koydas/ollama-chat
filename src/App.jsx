@@ -458,6 +458,8 @@ function App() {
   }
 
   const sortedConversations = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt)
+  const showMicButton =
+    voiceMode === 'vocal' && (isListening || isTranscribing || (!input.trim() && attachments.length === 0))
 
   return (
     <div className="app">
@@ -745,29 +747,6 @@ function App() {
             hidden
             onChange={handleAttachFiles}
           />
-          {voiceMode === 'vocal' && (
-            <button
-              type="button"
-              className={`icon-btn mic-btn ${isListening ? 'listening' : ''} ${isTranscribing ? 'transcribing' : ''}`}
-              onClick={handleMicClick}
-              disabled={isStreaming || isTranscribing}
-              aria-label={isListening ? 'Arrêter la dictée' : 'Dicter un message'}
-              aria-busy={isTranscribing}
-            >
-              {isTranscribing ? (
-                <svg className="speak-spinner" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <circle cx="12" cy="12" r="9" strokeOpacity="0.25"></circle>
-                  <path d="M21 12a9 9 0 0 0-9-9"></path>
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="2" width="6" height="12" rx="3"></rect>
-                  <path d="M5 10a7 7 0 0 0 14 0"></path>
-                  <line x1="12" y1="19" x2="12" y2="22"></line>
-                </svg>
-              )}
-            </button>
-          )}
           <div className="input-wrap">
             <input
               value={input}
@@ -775,17 +754,41 @@ function App() {
               disabled={isStreaming}
               placeholder="Type a message..."
             />
-            <button
-              type="submit"
-              className="send-btn"
-              disabled={isStreaming || (!input.trim() && attachments.length === 0)}
-              aria-label="Send"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5"></line>
-                <polyline points="5 12 12 5 19 12"></polyline>
-              </svg>
-            </button>
+            {showMicButton ? (
+              <button
+                type="button"
+                className={`send-btn mic-btn ${isListening ? 'listening' : ''} ${isTranscribing ? 'transcribing' : ''}`}
+                onClick={handleMicClick}
+                disabled={isStreaming || isTranscribing}
+                aria-label={isListening ? 'Arrêter la dictée' : 'Dicter un message'}
+                aria-busy={isTranscribing}
+              >
+                {isTranscribing ? (
+                  <svg className="speak-spinner" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <circle cx="12" cy="12" r="9" strokeOpacity="0.25"></circle>
+                    <path d="M21 12a9 9 0 0 0-9-9"></path>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+                    <path d="M5 10a7 7 0 0 0 14 0"></path>
+                    <line x1="12" y1="19" x2="12" y2="22"></line>
+                  </svg>
+                )}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="send-btn"
+                disabled={isStreaming || (!input.trim() && attachments.length === 0)}
+                aria-label="Send"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="19" x2="12" y2="5"></line>
+                  <polyline points="5 12 12 5 19 12"></polyline>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </form>
