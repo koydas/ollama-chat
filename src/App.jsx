@@ -767,7 +767,9 @@ function App() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isStreaming}
-              placeholder={isListening ? 'Recording...' : 'Type a message...'}
+              placeholder={
+                isListening ? 'Recording...' : isTranscribing ? 'Processing...' : 'Type a message...'
+              }
             />
             {showMicButton ? (
               <button
