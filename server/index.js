@@ -1,5 +1,6 @@
 import express from 'express'
 import fs from 'node:fs'
+import https from 'node:https'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createProxyMiddleware } from 'http-proxy-middleware'
@@ -83,3 +84,19 @@ if (fs.existsSync(DIST_DIR)) {
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => console.log(`Session server listening on :${PORT}`))
+
+// TLS for the direct MetalLB IP path (ADR-0007) — ollama-chat.home's own TLS
+// is terminated by ingress-nginx instead, so this is the only place the bare
+// IP gets HTTPS. Vocal mode's mic access needs a secure context either way
+// (see docs/adr/0012), and the bare IP has no /etc/hosts requirement, so it
+// needs its own cert (same self-signed cert, with an IP SAN added). Only
+// starts when a cert is actually mounted, so local dev/tests are unaffected.
+const TLS_CERT_PATH = process.env.TLS_CERT_PATH || '/app/certs/tls.crt'
+const TLS_KEY_PATH = process.env.TLS_KEY_PATH || '/app/certs/tls.key'
+const HTTPS_PORT = process.env.HTTPS_PORT || 8443
+
+if (fs.existsSync(TLS_CERT_PATH) && fs.existsSync(TLS_KEY_PATH)) {
+  https
+    .createServer({ cert: fs.readFileSync(TLS_CERT_PATH), key: fs.readFileSync(TLS_KEY_PATH) }, app)
+    .listen(HTTPS_PORT, () => console.log(`Session server (HTTPS) listening on :${HTTPS_PORT}`))
+}

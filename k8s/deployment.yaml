@@ -26,6 +26,7 @@ spec:
               value: http://piper.piper.svc.cluster.local:8000
           ports:
             - containerPort: 8080
+            - containerPort: 8443
           resources:
             requests:
               cpu: 25m
@@ -36,7 +37,15 @@ spec:
           volumeMounts:
             - name: session-data
               mountPath: /app/server/data
+            - name: tls-certs
+              mountPath: /app/certs
+              readOnly: true
       volumes:
         - name: session-data
           persistentVolumeClaim:
             claimName: ollama-chat-session
+        - name: tls-certs
+          secret:
+            # Self-signed cert created once out-of-band (never in Git) --
+            # see docs/adr/0012.
+            secretName: ollama-chat-tls

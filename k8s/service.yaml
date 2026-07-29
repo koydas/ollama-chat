@@ -12,5 +12,9 @@ spec:
   selector:
     app: ollama-chat
   ports:
-    - port: 80
+    - name: http
+      port: 80
       targetPort: 8080
+    - name: https
+      port: 443
+      targetPort: 8443
