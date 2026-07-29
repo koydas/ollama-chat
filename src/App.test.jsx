@@ -346,7 +346,7 @@ describe('voice mode', () => {
     expect(localStorage.getItem(VOICE_MODE_KEY)).toBe('vocal')
   })
 
-  it('dictates a message into the input via MediaRecorder + /api/stt', async () => {
+  it('dictates a message via MediaRecorder + /api/stt and sends it automatically', async () => {
     const user = userEvent.setup()
     const fetchMock = mockFetch()
     vi.stubGlobal('fetch', fetchMock)
@@ -361,14 +361,34 @@ describe('voice mode', () => {
       FakeMediaRecorder.instances[0].stop()
     })
 
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText('Type a message...')).toHaveValue('bonjour tout le monde'),
-    )
+    expect(await screen.findByText('bonjour tout le monde')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Type a message...')).toHaveValue('')
     expect(screen.getByRole('button', { name: 'Dicter un message' })).toBeInTheDocument()
 
     const sttCall = fetchMock.mock.calls.find((c) => typeof c[0] === 'string' && c[0].startsWith('/api/stt'))
     expect(sttCall).toBeTruthy()
     expect(sttCall[1].body).toBeInstanceOf(FormData)
+
+    const chatCall = fetchMock.mock.calls.find((c) => c[0] === '/api/chat')
+    expect(chatCall).toBeTruthy()
+  })
+
+  it('shows an error banner and does not send when dictation returns no speech', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockFetch({ sttText: '' })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    await switchToVocal(user)
+
+    await user.click(screen.getByRole('button', { name: 'Dicter un message' }))
+    await waitFor(() => expect(FakeMediaRecorder.instances).toHaveLength(1))
+
+    act(() => {
+      FakeMediaRecorder.instances[0].stop()
+    })
+
+    expect(await screen.findByText('Aucune parole détectée, réessayez.')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/chat')).toBe(false)
   })
 
   it('shows an error banner when the microphone is not accessible', async () => {

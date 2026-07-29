@@ -49,6 +49,7 @@ function App() {
   const audioChunksRef = useRef([])
   const audioPlayerRef = useRef(null)
   const wasStreamingRef = useRef(false)
+  const inputRef = useRef('')
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeId) ?? conversations[0] ?? null,
@@ -72,6 +73,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations))
   }, [conversations])
+
+  useEffect(() => {
+    inputRef.current = input
+  }, [input])
 
   useEffect(() => {
     localStorage.setItem(PROFILE_NAME_KEY, profileName)
@@ -371,7 +376,8 @@ function App() {
         const data = await res.json()
         const transcript = data.text?.trim()
         if (transcript) {
-          setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+          const finalText = inputRef.current ? `${inputRef.current} ${transcript}` : transcript
+          await sendMessage(finalText)
         } else {
           setError("Aucune parole détectée, réessayez.")
         }
@@ -387,9 +393,8 @@ function App() {
     setIsListening(true)
   }
 
-  async function handleSend(e) {
-    e.preventDefault()
-    const userText = input.trim()
+  async function sendMessage(text) {
+    const userText = text.trim()
     if ((!userText && attachments.length === 0) || isStreaming || !activeConversation) return
 
     const convId = activeConversation.id
@@ -406,6 +411,11 @@ function App() {
     setInput('')
     setAttachments([])
     await streamReply(convId, newMessages)
+  }
+
+  async function handleSend(e) {
+    e.preventDefault()
+    await sendMessage(input)
   }
 
   function handleEditStart(i) {
@@ -744,11 +754,18 @@ function App() {
               aria-label={isListening ? 'Arrêter la dictée' : 'Dicter un message'}
               aria-busy={isTranscribing}
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="2" width="6" height="12" rx="3"></rect>
-                <path d="M5 10a7 7 0 0 0 14 0"></path>
-                <line x1="12" y1="19" x2="12" y2="22"></line>
-              </svg>
+              {isTranscribing ? (
+                <svg className="speak-spinner" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="9" strokeOpacity="0.25"></circle>
+                  <path d="M21 12a9 9 0 0 0-9-9"></path>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+                  <path d="M5 10a7 7 0 0 0 14 0"></path>
+                  <line x1="12" y1="19" x2="12" y2="22"></line>
+                </svg>
+              )}
             </button>
           )}
           <div className="input-wrap">

@@ -674,17 +674,7 @@ select:focus {
 }
 
 .mic-btn.transcribing {
-  opacity: 0.6;
-  animation: mic-pulse 1s ease-in-out infinite;
-}
-
-@keyframes mic-pulse {
-  0%, 100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 0.8;
-  }
+  color: var(--accent);
 }
 
 .attachment-strip {
