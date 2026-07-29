@@ -4,6 +4,7 @@ export const PROFILE_NAME_KEY = 'ollama-chat-profile-name'
 export const THEME_KEY = 'ollama-chat-theme'
 export const SERVER_SYNC_KEY = 'ollama-chat-server-sync'
 export const VOICE_MODE_KEY = 'ollama-chat-voice-mode'
+export const AUTO_READ_REPLIES_KEY = 'ollama-chat-auto-read-replies'
 export const DEFAULT_PROFILE_NAME = 'Vous'
 
 // There is no model picker in the UI (single "Chat" mode): route to the
@@ -102,6 +103,16 @@ export function loadVoiceMode() {
     return localStorage.getItem(VOICE_MODE_KEY) === 'vocal' ? 'vocal' : 'text'
   } catch {
     return 'text'
+  }
+}
+
+// Defaults to on: unset (null) and 'true' both mean enabled, only an
+// explicit 'false' turns it off.
+export function loadAutoReadReplies() {
+  try {
+    return localStorage.getItem(AUTO_READ_REPLIES_KEY) !== 'false'
+  } catch {
+    return true
   }
 }
 

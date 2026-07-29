@@ -439,6 +439,24 @@ describe('voice mode', () => {
     expect(JSON.parse(ttsCall[1].body)).toEqual({ text: 'Bonjour !' })
   })
 
+  it('skips auto-play when "Lire les réponses à voix haute" is turned off', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockFetch({ chatChunks: ['{"message":{"content":"Bonjour"}}\n'] })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    await switchToVocal(user)
+
+    await user.click(screen.getByRole('button', { name: 'Historique des conversations' }))
+    await user.click(screen.getByRole('button', { name: 'Profil' }))
+    await user.click(screen.getByLabelText('Lire les réponses à voix haute (mode vocal)'))
+
+    await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => expect(screen.getByText('Bonjour')).toBeInTheDocument())
+    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/tts')).toBe(false)
+  })
+
   it('does not call /api/tts when back in text mode', async () => {
     const user = userEvent.setup()
     const fetchMock = mockFetch({ chatChunks: ['{"message":{"content":"Bonjour"}}\n'] })

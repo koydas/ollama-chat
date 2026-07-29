@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
+  AUTO_READ_REPLIES_KEY,
   CONVERSATIONS_KEY,
   deriveTitle,
   formatRelativeTime,
+  loadAutoReadReplies,
   loadConversations,
   loadProfileName,
   loadServerSync,
@@ -37,6 +39,7 @@ function App() {
   const [serverSync, setServerSync] = useState(loadServerSync)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [voiceMode, setVoiceMode] = useState(loadVoiceMode)
+  const [autoReadReplies, setAutoReadReplies] = useState(loadAutoReadReplies)
   const [isListening, setIsListening] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [speakingIndex, setSpeakingIndex] = useState(null)
@@ -96,6 +99,10 @@ function App() {
     localStorage.setItem(VOICE_MODE_KEY, voiceMode)
   }, [voiceMode])
 
+  useEffect(() => {
+    localStorage.setItem(AUTO_READ_REPLIES_KEY, String(autoReadReplies))
+  }, [autoReadReplies])
+
   // Leaving vocal mode mid-dictation or mid-playback should stop both rather
   // than let them run on invisibly in the background.
   useEffect(() => {
@@ -138,12 +145,12 @@ function App() {
   // finishes, but only for a reply that just streamed in this session — not
   // on mount/history load.
   useEffect(() => {
-    if (wasStreamingRef.current && !isStreaming && voiceMode === 'vocal') {
+    if (wasStreamingRef.current && !isStreaming && voiceMode === 'vocal' && autoReadReplies) {
       const last = messages[messages.length - 1]
       if (last?.role === 'assistant' && last.content) speakText(last.content)
     }
     wasStreamingRef.current = isStreaming
-  }, [isStreaming, voiceMode, messages])
+  }, [isStreaming, voiceMode, autoReadReplies, messages])
 
   function handleSpeakMessage(i, text) {
     const audio = audioPlayerRef.current
@@ -575,6 +582,14 @@ function App() {
                       type="checkbox"
                       checked={serverSync}
                       onChange={(e) => setServerSync(e.target.checked)}
+                    />
+                  </label>
+                  <label className="profile-menu-row profile-menu-toggle">
+                    <span>Lire les réponses à voix haute (mode vocal)</span>
+                    <input
+                      type="checkbox"
+                      checked={autoReadReplies}
+                      onChange={(e) => setAutoReadReplies(e.target.checked)}
                     />
                   </label>
                   <button
