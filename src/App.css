@@ -506,7 +506,7 @@ select:focus {
   border: none;
   background: none;
   color: inherit;
-  opacity: 0;
+  opacity: 0.5;
   padding: 0;
   display: flex;
   align-items: center;
@@ -514,10 +514,6 @@ select:focus {
   cursor: pointer;
   border-radius: 4px;
   transition: opacity 0.1s;
-}
-
-.message:hover .message-edit-btn {
-  opacity: 0.5;
 }
 
 .message-edit-btn:hover:not(:disabled) {
@@ -535,7 +531,7 @@ select:focus {
   border: none;
   background: none;
   color: inherit;
-  opacity: 0;
+  opacity: 0.5;
   padding: 0;
   display: flex;
   align-items: center;
@@ -543,10 +539,6 @@ select:focus {
   cursor: pointer;
   border-radius: 4px;
   transition: opacity 0.1s;
-}
-
-.message:hover .message-speak-btn {
-  opacity: 0.5;
 }
 
 .message-speak-btn:hover {
