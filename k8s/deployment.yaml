@@ -18,7 +18,7 @@ spec:
         - name: ollama-chat
           # Tag is rewritten to the built commit SHA by the docker-publish
           # workflow on every push to main; see docs/adr/0006.
-          image: ghcr.io/koydas/ollama-chat:baab9b6
+          image: ghcr.io/koydas/ollama-chat:5ebf289
           env:
             - name: WHISPER_URL
               value: http://whisper.whisper.svc.cluster.local:9000
