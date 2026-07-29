@@ -39,6 +39,7 @@ function App() {
   const [voiceMode, setVoiceMode] = useState(loadVoiceMode)
   const [isListening, setIsListening] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
+  const [speakingIndex, setSpeakingIndex] = useState(null)
   const listEndRef = useRef(null)
   const profileSectionRef = useRef(null)
   const syncedOnceRef = useRef(false)
@@ -98,35 +99,55 @@ function App() {
     setIsListening(false)
   }, [voiceMode])
 
+  // Fetch TTS audio from the Piper proxy and play it through the shared
+  // <audio> element, calling onEnd when playback finishes or is interrupted.
+  async function speakText(text, onEnd) {
+    const audio = audioPlayerRef.current
+    if (!audio || !text) return
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      if (!res.ok) throw new Error(`TTS a répondu ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      audio.src = url
+      audio.onended = () => {
+        URL.revokeObjectURL(url)
+        onEnd?.()
+      }
+      await audio.play()
+    } catch (err) {
+      setError(`Erreur de synthèse vocale : ${err.message}`)
+      onEnd?.()
+    }
+  }
+
   // Speak the assistant's reply (via the Piper TTS proxy) once streaming
   // finishes, but only for a reply that just streamed in this session — not
   // on mount/history load.
   useEffect(() => {
     if (wasStreamingRef.current && !isStreaming && voiceMode === 'vocal') {
       const last = messages[messages.length - 1]
-      if (last?.role === 'assistant' && last.content) {
-        fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: last.content }),
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error(`TTS a répondu ${res.status}`)
-            return res.blob()
-          })
-          .then((blob) => {
-            const audio = audioPlayerRef.current
-            if (!audio) return
-            const url = URL.createObjectURL(blob)
-            audio.src = url
-            audio.onended = () => URL.revokeObjectURL(url)
-            audio.play()
-          })
-          .catch((err) => setError(`Erreur de synthèse vocale : ${err.message}`))
-      }
+      if (last?.role === 'assistant' && last.content) speakText(last.content)
     }
     wasStreamingRef.current = isStreaming
   }, [isStreaming, voiceMode, messages])
+
+  function handleSpeakMessage(i, text) {
+    const audio = audioPlayerRef.current
+    if (!audio || !text) return
+    if (speakingIndex === i) {
+      audio.pause()
+      setSpeakingIndex(null)
+      return
+    }
+    audio.pause()
+    setSpeakingIndex(i)
+    speakText(text, () => setSpeakingIndex((cur) => (cur === i ? null : cur)))
+  }
 
   useEffect(() => {
     if (!historyOpen) setProfileMenuOpen(false)
@@ -563,6 +584,25 @@ function App() {
             <div key={i} className={`message ${msg.role} ${isEditing ? 'editing' : ''}`}>
               <div className="message-head">
                 <span className="role-label">{msg.role === 'user' ? 'You' : 'Assistant'}</span>
+                {!isEditing && !isPending && msg.content && (
+                  <button
+                    type="button"
+                    className={`message-speak-btn ${speakingIndex === i ? 'speaking' : ''}`}
+                    onClick={() => handleSpeakMessage(i, msg.content)}
+                    aria-label={speakingIndex === i ? 'Arrêter la lecture' : 'Lire le message à voix haute'}
+                  >
+                    {speakingIndex === i ? (
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="5" y="5" width="14" height="14" rx="1"></rect>
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="4 7 9 7 14 3 14 21 9 17 4 17 4 7"></polygon>
+                        <path d="M18 8a6 6 0 0 1 0 8"></path>
+                      </svg>
+                    )}
+                  </button>
+                )}
                 {!isEditing && !isPending && (
                   <button
                     type="button"
