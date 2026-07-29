@@ -141,26 +141,12 @@ function App() {
     }
   }
 
-  // Speak the assistant's reply (via the Piper TTS proxy) once streaming
-  // finishes, but only for a reply that just streamed in this session — not
-  // on mount/history load.
-  useEffect(() => {
-    if (wasStreamingRef.current && !isStreaming && voiceMode === 'vocal' && autoReadReplies) {
-      const last = messages[messages.length - 1]
-      if (last?.role === 'assistant' && last.content) speakText(last.content)
-    }
-    wasStreamingRef.current = isStreaming
-  }, [isStreaming, voiceMode, autoReadReplies, messages])
-
-  function handleSpeakMessage(i, text) {
+  // Speak a specific message's text and keep speakingIndex/loadingSpeakIndex
+  // in sync with it, so that message's own 🔊 icon reflects loading/playing
+  // state — used both by the manual per-message button and by auto-play.
+  function speakMessageAt(i, text) {
     const audio = audioPlayerRef.current
     if (!audio || !text) return
-    if (speakingIndex === i || loadingSpeakIndex === i) {
-      audio.pause()
-      setSpeakingIndex(null)
-      setLoadingSpeakIndex(null)
-      return
-    }
     audio.pause()
     setSpeakingIndex(null)
     setLoadingSpeakIndex(i)
@@ -174,6 +160,28 @@ function App() {
         setSpeakingIndex((cur) => (cur === i ? null : cur))
       },
     })
+  }
+
+  // Speak the assistant's reply (via the Piper TTS proxy) once streaming
+  // finishes, but only for a reply that just streamed in this session — not
+  // on mount/history load.
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming && voiceMode === 'vocal' && autoReadReplies) {
+      const lastIndex = messages.length - 1
+      const last = messages[lastIndex]
+      if (last?.role === 'assistant' && last.content) speakMessageAt(lastIndex, last.content)
+    }
+    wasStreamingRef.current = isStreaming
+  }, [isStreaming, voiceMode, autoReadReplies, messages])
+
+  function handleSpeakMessage(i, text) {
+    if (speakingIndex === i || loadingSpeakIndex === i) {
+      audioPlayerRef.current?.pause()
+      setSpeakingIndex(null)
+      setLoadingSpeakIndex(null)
+      return
+    }
+    speakMessageAt(i, text)
   }
 
   useEffect(() => {
