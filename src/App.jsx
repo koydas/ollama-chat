@@ -38,6 +38,7 @@ function App() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [voiceMode, setVoiceMode] = useState(loadVoiceMode)
   const [isListening, setIsListening] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
   const listEndRef = useRef(null)
   const profileSectionRef = useRef(null)
   const syncedOnceRef = useRef(false)
@@ -324,6 +325,7 @@ function App() {
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
       const formData = new FormData()
       formData.append('audio_file', audioBlob, 'recording.webm')
+      setIsTranscribing(true)
       try {
         const res = await fetch('/api/stt?task=transcribe&language=fr&output=json', {
           method: 'POST',
@@ -332,9 +334,15 @@ function App() {
         if (!res.ok) throw new Error(`STT a répondu ${res.status}`)
         const data = await res.json()
         const transcript = data.text?.trim()
-        if (transcript) setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+        if (transcript) {
+          setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+        } else {
+          setError("Aucune parole détectée, réessayez.")
+        }
       } catch (err) {
         setError(`Erreur de dictée : ${err.message}`)
+      } finally {
+        setIsTranscribing(false)
       }
     }
 
@@ -663,10 +671,11 @@ function App() {
           {voiceMode === 'vocal' && (
             <button
               type="button"
-              className={`icon-btn mic-btn ${isListening ? 'listening' : ''}`}
+              className={`icon-btn mic-btn ${isListening ? 'listening' : ''} ${isTranscribing ? 'transcribing' : ''}`}
               onClick={handleMicClick}
-              disabled={isStreaming}
+              disabled={isStreaming || isTranscribing}
               aria-label={isListening ? 'Arrêter la dictée' : 'Dicter un message'}
+              aria-busy={isTranscribing}
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="9" y="2" width="6" height="12" rx="3"></rect>
