@@ -671,6 +671,19 @@ select:focus {
   color: #fff;
   background: #e0433d;
   border-color: #e0433d;
+  animation: mic-beat 1s ease-in-out infinite;
+}
+
+@keyframes mic-beat {
+  0%, 40%, 100% {
+    transform: translateY(-50%) scale(1);
+  }
+  20% {
+    transform: translateY(-50%) scale(1.18);
+  }
+  60% {
+    transform: translateY(-50%) scale(1.1);
+  }
 }
 
 .mic-btn.transcribing {
