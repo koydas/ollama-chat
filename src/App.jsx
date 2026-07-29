@@ -348,11 +348,27 @@ function App() {
     setAttachments((prev) => prev.filter((a) => a.id !== id))
   }
 
+  // Chrome/Safari only allow HTMLMediaElement.play() without a fresh user
+  // gesture once the element has successfully played due to a real one.
+  // The eventual TTS playback happens several seconds later (after the
+  // STT/chat round-trip), well outside that gesture window, so prime the
+  // shared <audio> element here — inside an actual click handler — with a
+  // silent clip to "unlock" it for later programmatic play() calls.
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
+  function unlockAudioPlayback() {
+    const audio = audioPlayerRef.current
+    if (!audio) return
+    audio.src = SILENT_WAV
+    audio.play().then(() => audio.pause()).catch(() => {})
+  }
+
   async function handleMicClick() {
     if (isListening) {
+      unlockAudioPlayback()
       mediaRecorderRef.current?.stop()
       return
     }
+    unlockAudioPlayback()
 
     let stream
     try {
@@ -422,6 +438,7 @@ function App() {
 
   async function handleSend(e) {
     e.preventDefault()
+    unlockAudioPlayback()
     await sendMessage(input)
   }
 
