@@ -40,6 +40,7 @@ function App() {
   const [isListening, setIsListening] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [speakingIndex, setSpeakingIndex] = useState(null)
+  const [loadingSpeakIndex, setLoadingSpeakIndex] = useState(null)
   const listEndRef = useRef(null)
   const profileSectionRef = useRef(null)
   const syncedOnceRef = useRef(false)
@@ -100,8 +101,10 @@ function App() {
   }, [voiceMode])
 
   // Fetch TTS audio from the Piper proxy and play it through the shared
-  // <audio> element, calling onEnd when playback finishes or is interrupted.
-  async function speakText(text, onEnd) {
+  // <audio> element. onStart fires once playback actually begins (the fetch
+  // + Piper synthesis round-trip is the slow part); onEnd fires when
+  // playback finishes or is interrupted, including on error.
+  async function speakText(text, { onStart, onEnd } = {}) {
     const audio = audioPlayerRef.current
     if (!audio || !text) return
     try {
@@ -118,6 +121,7 @@ function App() {
         URL.revokeObjectURL(url)
         onEnd?.()
       }
+      onStart?.()
       await audio.play()
     } catch (err) {
       setError(`Erreur de synthèse vocale : ${err.message}`)
@@ -139,14 +143,25 @@ function App() {
   function handleSpeakMessage(i, text) {
     const audio = audioPlayerRef.current
     if (!audio || !text) return
-    if (speakingIndex === i) {
+    if (speakingIndex === i || loadingSpeakIndex === i) {
       audio.pause()
       setSpeakingIndex(null)
+      setLoadingSpeakIndex(null)
       return
     }
     audio.pause()
-    setSpeakingIndex(i)
-    speakText(text, () => setSpeakingIndex((cur) => (cur === i ? null : cur)))
+    setSpeakingIndex(null)
+    setLoadingSpeakIndex(i)
+    speakText(text, {
+      onStart: () => {
+        setLoadingSpeakIndex((cur) => (cur === i ? null : cur))
+        setSpeakingIndex(i)
+      },
+      onEnd: () => {
+        setLoadingSpeakIndex((cur) => (cur === i ? null : cur))
+        setSpeakingIndex((cur) => (cur === i ? null : cur))
+      },
+    })
   }
 
   useEffect(() => {
@@ -587,11 +602,23 @@ function App() {
                 {!isEditing && !isPending && msg.content && (
                   <button
                     type="button"
-                    className={`message-speak-btn ${speakingIndex === i ? 'speaking' : ''}`}
+                    className={`message-speak-btn ${speakingIndex === i ? 'speaking' : ''} ${loadingSpeakIndex === i ? 'loading' : ''}`}
                     onClick={() => handleSpeakMessage(i, msg.content)}
-                    aria-label={speakingIndex === i ? 'Arrêter la lecture' : 'Lire le message à voix haute'}
+                    aria-label={
+                      loadingSpeakIndex === i
+                        ? 'Chargement de la lecture…'
+                        : speakingIndex === i
+                          ? 'Arrêter la lecture'
+                          : 'Lire le message à voix haute'
+                    }
+                    aria-busy={loadingSpeakIndex === i}
                   >
-                    {speakingIndex === i ? (
+                    {loadingSpeakIndex === i ? (
+                      <svg className="speak-spinner" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <circle cx="12" cy="12" r="9" strokeOpacity="0.25"></circle>
+                        <path d="M21 12a9 9 0 0 0-9-9"></path>
+                      </svg>
+                    ) : speakingIndex === i ? (
                       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="5" y="5" width="14" height="14" rx="1"></rect>
                       </svg>

@@ -559,6 +559,23 @@ select:focus {
   color: var(--accent);
 }
 
+.message-speak-btn.loading {
+  opacity: 1;
+  color: var(--accent);
+  cursor: default;
+}
+
+.speak-spinner {
+  animation: speak-spin 0.7s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes speak-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .message.editing {
   max-width: 100%;
   width: 100%;
