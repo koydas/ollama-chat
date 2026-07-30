@@ -743,11 +743,13 @@ select:focus {
 .input-wrap {
   position: relative;
   flex: 1;
+  min-width: 0;
   display: flex;
 }
 
 .input-wrap input {
   flex: 1;
+  min-width: 0;
   padding: 0.98rem 3.9rem 0.98rem 1.5rem;
   border-radius: 999px;
   border: 1px solid var(--border);
