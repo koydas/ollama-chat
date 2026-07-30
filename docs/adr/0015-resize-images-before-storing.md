@@ -88,3 +88,8 @@ updating React state to match so the stripped result — not the original oversi
 what future saves are based on. Loses old image thumbnails on reload but keeps all text intact,
 and self-heals without requiring the operator to manually clear browser storage. Surfaces as an
 info-style message via the same `error` banner rather than a new UI element.
+
+Per operator request: a stripped message's content now gets `[Image]` appended (or set to it
+outright, if there was no text) instead of just silently losing the image with no trace — the
+message stays visible in history with a marker showing a photo used to be attached there,
+rather than reading like the user only ever sent bare text.

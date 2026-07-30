@@ -176,11 +176,15 @@ export function resizeImageDataUrl(
 // total size well past the quota even though resizing now keeps *new*
 // attachments small. Drops all embedded images and retries once rather
 // than failing the save (and re-showing the same error) on every future
-// state change -- loses old image thumbnails on reload, keeps all text.
+// state change -- keeps all text, marking where an image used to be with
+// "[Image]" rather than silently dropping it from view.
 export function stripImages(conversations) {
   return conversations.map((c) => ({
     ...c,
-    messages: c.messages.map(({ images: _images, ...rest }) => rest),
+    messages: c.messages.map(({ images, ...rest }) => {
+      if (!images || images.length === 0) return rest
+      return { ...rest, content: rest.content ? `${rest.content} [Image]` : '[Image]' }
+    }),
   }))
 }
 

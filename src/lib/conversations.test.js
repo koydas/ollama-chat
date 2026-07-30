@@ -223,7 +223,7 @@ describe('loadVoiceMode', () => {
 })
 
 describe('stripImages', () => {
-  it('removes images from every message but keeps everything else intact', () => {
+  it('removes images but appends "[Image]" to any existing text content', () => {
     const conversations = [
       {
         id: 'c1',
@@ -248,7 +248,7 @@ describe('stripImages', () => {
         title: 'Chat photo',
         updatedAt: 123,
         messages: [
-          { role: 'user', content: "qu'est-ce que c'est ?" },
+          { role: 'user', content: "qu'est-ce que c'est ? [Image]" },
           { role: 'assistant', content: 'Un chat.' },
         ],
       },
@@ -256,8 +256,22 @@ describe('stripImages', () => {
         id: 'c2',
         title: 'Autre conversation',
         updatedAt: 456,
-        messages: [{ role: 'user', content: 'salut' }],
+        messages: [{ role: 'user', content: 'salut [Image]' }],
       },
+    ])
+  })
+
+  it('replaces content with just "[Image]" when the message had no text', () => {
+    const conversations = [
+      {
+        id: 'c1',
+        title: '',
+        updatedAt: 1,
+        messages: [{ role: 'user', content: '', images: ['data:image/jpeg;base64,AAAA'] }],
+      },
+    ]
+    expect(stripImages(conversations)).toEqual([
+      { id: 'c1', title: '', updatedAt: 1, messages: [{ role: 'user', content: '[Image]' }] },
     ])
   })
 

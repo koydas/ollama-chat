@@ -213,11 +213,11 @@ describe('App', () => {
 
     await screen.findByText('Chat')
     expect(await screen.findByText(/Stockage local plein/)).toBeInTheDocument()
-    expect(screen.getByText('une vieille photo')).toBeInTheDocument()
+    expect(screen.getByText('une vieille photo [Image]')).toBeInTheDocument()
 
     const saved = JSON.parse(localStorage.getItem(CONVERSATIONS_KEY))
     expect(saved[0].messages[0].images).toBeUndefined()
-    expect(saved[0].messages[0].content).toBe('une vieille photo')
+    expect(saved[0].messages[0].content).toBe('une vieille photo [Image]')
   })
 
   it('edits a user message, drops the old reply and regenerates it', async () => {
