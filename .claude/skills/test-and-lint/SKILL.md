@@ -22,7 +22,7 @@ npm run build      # vite build — must succeed; this is what the Docker image 
 Run all three before calling a change complete. A change that passes `npm test` but fails
 `npm run build` (or vice versa) is not done.
 
-### Two test layers, matching two files
+### Three test layers, matching three files
 
 - **`src/lib/conversations.test.js`** — direct unit tests of pure functions
   (`pickModel`, `toOllamaMessage`, `deriveTitle`, `formatRelativeTime`, the `load*` helpers,
@@ -34,13 +34,21 @@ Run all three before calling a change complete. A change that passes `npm test` 
   `vi.stubGlobal('fetch', mockFetch({ chatChunks: [...] }))`. Use the existing `mockFetch`/
   `streamResponse` helpers at the top of the file rather than hand-rolling new response
   mocks — they already model Ollama's real NDJSON streaming shape.
+- **`server/index.e2e.test.js`** — the real Express app (`server/index.js`) driven with real
+  HTTP requests against three fake HTTP backends standing in for Ollama/Whisper/Piper, using
+  vitest's `// @vitest-environment node` per-file override (no jsdom, no mocked `fetch` — the
+  Node-side counterpart to `App.test.jsx`'s browser-side coverage). Covers proxy routing, the
+  Origin-header rewrite, and `/session` persistence. If you're adding logic to `server/index.js`
+  itself (a new proxy route, a new persisted field), it belongs here, not as a manual curl
+  check — see `docs/adr/0017-e2e-tests-for-the-express-proxy-server.md`.
 
 ### Never shrink an existing test file
 
-Before editing `App.test.jsx` or `conversations.test.js`, note the current number of `it(`
-blocks. Your diff should have at least that many, unless a test is being removed because the
-behavior it tested was deliberately removed in the same change (e.g. the model-dropdown test
-was deleted only because the dropdown itself was deleted — not as a shortcut).
+Before editing `App.test.jsx`, `conversations.test.js`, or `server/index.e2e.test.js`, note
+the current number of `it(`/`test(` blocks. Your diff should have at least that many, unless a
+test is being removed because the behavior it tested was deliberately removed in the same
+change (e.g. the model-dropdown test was deleted only because the dropdown itself was deleted
+— not as a shortcut).
 
 ### When removing a feature's UI, check for readiness-signal assumptions in tests
 
@@ -63,4 +71,5 @@ assuming they're independent.
 
 - `src/lib/conversations.js` / `src/lib/conversations.test.js` — pure-logic-first pattern
 - `src/App.test.jsx` — `mockFetch`/`streamResponse` helpers, the pattern to reuse for new tests
+- `server/index.e2e.test.js` — `createFakeBackend`/`readBody` helpers, the pattern to reuse for new server-side e2e tests
 - `package.json` — `scripts` for the exact commands and current dependency list

@@ -42,8 +42,11 @@ Docs-only changes (`docs/**`, `**.md`, or anything under `k8s/**`) are in the wo
 gh run list --limit 1
 ```
 
-Wait for `status: completed` / `conclusion: success` before assuming the image exists in
-GHCR. Don't guess at CI outcomes — check.
+Wait for `status: completed` / `conclusion: success` on the `docker-publish` run before
+assuming the image exists in GHCR — don't guess at CI outcomes, check. A separate `e2e.yml`
+workflow also runs `server/index.e2e.test.js` on every push/PR (for an accurate CI badge, see
+the README) and gates nothing on its own; `docker-publish.yml` has its own `test` job (lint +
+full suite + build) that `build-and-publish` actually depends on.
 
 ### Getting ArgoCD to pick it up now, not in ~3 minutes
 
