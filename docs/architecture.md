@@ -54,7 +54,7 @@ Two details make this work:
 ```mermaid
 flowchart LR
     A[Messages to send] --> B{Any message has<br/>a non-empty images array?}
-    B -- yes --> C[qwen2.5vl:3b<br/>VISION_MODEL]
+    B -- yes --> C[llava:7b<br/>VISION_MODEL]
     B -- no --> D[llama3.1:8b-instruct-q4_0<br/>TEXT_MODEL]
 ```
 

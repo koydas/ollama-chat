@@ -12,10 +12,11 @@ Architecture Decision Records (ADR) for `ollama-chat`.
 - [ADR-0006: GitOps deployment via GHCR image + CI-committed tag bump](./0006-gitops-deployment-via-ghcr.md)
 - [ADR-0007: Dedicated MetalLB IP alongside the Ingress](./0007-dedicated-metallb-ip.md)
 - [ADR-0008: Image attachments stored as data URLs, converted to bare base64 at the Ollama boundary](./0008-image-attachments-as-data-urls.md)
-- [ADR-0009: Fixed "Chat" mode with automatic model routing, no model picker](./0009-fixed-chat-mode-automatic-model-routing.md)
+- [ADR-0009: Fixed "Chat" mode with automatic model routing, no model picker](./0009-fixed-chat-mode-automatic-model-routing.md) — vision model choice superseded by ADR-0016
 - [ADR-0010: Voice mode via the browser's native Web Speech API, no server involvement](./0010-browser-web-speech-api-for-voice-mode.md)
 - [ADR-0011: Server-side Whisper/Piper replace the Web Speech API for voice mode](./0011-server-side-stt-tts-whisper-piper.md)
 - [ADR-0012: Self-signed TLS on the Ingress, so vocal mode gets a secure context](./0012-self-signed-tls-for-secure-context.md)
 - [ADR-0013: Prime the shared `<audio>` element inside click handlers to survive autoplay policy](./0013-audio-unlock-for-autoplay-policy.md)
 - [ADR-0014: Route production traffic through homelab-gateway](./0014-route-production-traffic-through-homelab-gateway.md)
 - [ADR-0015: Downscale image attachments client-side before storing or sending](./0015-resize-images-before-storing.md)
+- [ADR-0016: Switch the vision model to `llava:7b`](./0016-switch-vision-model-to-llava.md)

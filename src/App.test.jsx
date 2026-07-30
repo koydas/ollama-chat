@@ -303,7 +303,7 @@ describe('App', () => {
     expect(sentMessage.content).toBe("qu'est-ce que c'est ?")
     expect(sentMessage.images).toHaveLength(1)
     expect(sentMessage.images[0]).not.toMatch(/^data:/)
-    expect(body.model).toBe('qwen2.5vl:3b')
+    expect(body.model).toBe('llava:7b')
   })
 
   it('shows an error banner when Ollama cannot be reached', async () => {

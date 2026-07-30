@@ -11,7 +11,7 @@ export const DEFAULT_PROFILE_NAME = 'Vous'
 // vision model whenever the request carries images, the lighter text-only
 // model otherwise.
 export const TEXT_MODEL = 'llama3.1:8b-instruct-q4_0'
-export const VISION_MODEL = 'qwen2.5vl:3b'
+export const VISION_MODEL = 'llava:7b'
 
 export function pickModel(messages) {
   return messages.some((m) => m.images && m.images.length > 0) ? VISION_MODEL : TEXT_MODEL
