@@ -98,7 +98,11 @@ Reachable at:
 Both paths use the same self-signed certificate (click through the browser's "not private"
 warning once per device) — needed because `getUserMedia` (vocal mode's mic input) requires a
 secure context, which plain HTTP doesn't satisfy
-([ADR-0012](./docs/adr/0012-self-signed-tls-for-secure-context.md)).
+([ADR-0012](./docs/adr/0012-self-signed-tls-for-secure-context.md)). On a fresh server this
+`ollama-chat-tls` Secret doesn't exist yet and must be created by hand — see
+["Bootstrapping a new server"](./docs/architecture.md#bootstrapping-a-new-server-the-tls-secret-and-etchosts-entry)
+in `docs/architecture.md` for the exact `openssl`/`kubectl create secret tls` commands and the
+required `/etc/hosts` line.
 
 ## Architecture decisions
 

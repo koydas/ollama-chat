@@ -216,3 +216,49 @@ flowchart TB
 Reachable either via a dedicated MetalLB IP (`.244`, zero client-side setup) or through the
 shared ingress at `ollama-chat.home` (`.243`, needs a `/etc/hosts` entry) — see
 [ADR-0007](./adr/0007-dedicated-metallb-ip.md).
+
+## Bootstrapping a new server: the TLS Secret and `/etc/hosts` entry
+
+Both access paths depend on `k8s/deployment.yaml` and `k8s/ingress.yaml` mounting/referencing
+a `ollama-chat-tls` Secret that is **created out-of-band, once, directly in the cluster** —
+it is never committed to Git ([ADR-0012](./adr/0012-self-signed-tls-for-secure-context.md)).
+On a brand-new server this Secret doesn't exist yet and must be created by hand before the
+Deployment's pod will come up healthy (the `tls-certs` volume mount has nothing to mount
+otherwise):
+
+```sh
+# 1. Generate a 10-year self-signed cert covering both access paths
+openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
+  -keyout tls.key -out tls.crt \
+  -subj "/CN=ollama-chat.home" \
+  -addext "subjectAltName=DNS:ollama-chat.home,IP:192.168.1.244"
+
+# 2. Create the namespace if it doesn't exist yet
+sudo microk8s kubectl create namespace ollama-chat --dry-run=client -o yaml \
+  | sudo microk8s kubectl apply -f -
+
+# 3. Create the Secret from the generated cert/key
+sudo microk8s kubectl create secret tls ollama-chat-tls \
+  --cert=tls.crt --key=tls.key \
+  -n ollama-chat
+
+# 4. Don't leave the private key on disk afterwards
+rm tls.key tls.crt
+```
+
+Re-run steps 1 and 3 (with `kubectl create secret tls ... --dry-run=client -o yaml | kubectl
+apply -f -`, or delete-then-recreate) if the Secret is ever lost — there is no backup or
+automation for it, by design (ADR-0012).
+
+The `ollama-chat.home` path additionally needs a per-device DNS override, since there's no LAN
+DNS server resolving it (ADR-0007). Add this line to `/etc/hosts` on every device that should
+reach it by hostname instead of the bare MetalLB IP:
+
+```
+192.168.1.243 ollama-chat.home
+```
+
+`192.168.1.243` is `ingress-nginx`'s address, not `ollama-chat`'s own MetalLB IP (`.244`) —
+the Ingress is what actually matches the `Host: ollama-chat.home` header and routes to the
+pod. The `192.168.1.244` path needs no `/etc/hosts` entry at all, by design
+([ADR-0007](./adr/0007-dedicated-metallb-ip.md)).
