@@ -67,7 +67,7 @@ Append a line to `docs/adr/README.md`'s `## Records` list:
 If the decision changes something a reader would hit while reading code (a constant, a
 function, a config file), add a one-line comment or doc pointer to the relevant ADR at that
 spot — see `pickModel()` in `src/lib/conversations.js` or the routing note in
-`docs/architecture.md` for the pattern.
+`docs/chat-and-images.md` for the pattern.
 
 ## Constraints
 
@@ -86,4 +86,4 @@ spot — see `pickModel()` in `src/lib/conversations.js` or the routing note in
 
 - `docs/adr/README.md` — the index to update
 - `docs/adr/0007-dedicated-metallb-ip.md`, `docs/adr/0009-fixed-chat-mode-automatic-model-routing.md` — good length/tone reference
-- `docs/architecture.md` — diagrams that may need a matching update alongside a new ADR
+- `docs/architecture.md` and its linked pages (`chat-and-images.md`, `vocal-mode.md`, `storage-sync.md`, `deployment.md`) — diagrams that may need a matching update alongside a new ADR

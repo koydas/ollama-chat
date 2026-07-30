@@ -101,5 +101,5 @@ ArgoCD source of truth for the `ollama` Ollama deployment itself, not this app).
 
 - `docs/adr/0006-gitops-deployment-via-ghcr.md` — why CI commits back to `main`
 - `docs/adr/0009-fixed-chat-mode-automatic-model-routing.md` — the hardcoded-model-tags caveat
-- `docs/architecture.md` — deployment pipeline and runtime topology diagrams
+- `docs/deployment.md` — deployment pipeline diagram; `docs/architecture.md` — runtime topology diagram
 - `.github/workflows/docker-publish.yml` — exact trigger/paths-ignore rules

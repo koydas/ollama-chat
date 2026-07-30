@@ -35,8 +35,8 @@ Browser ──/api/*──> Ollama (chat, streamed, no app backend in the path)
         └─/session─> Express (opt-in session sync only, server/index.js)
 ```
 
-For the full picture with diagrams — request flow, model routing, sync, deployment
-pipeline, and the production runtime topology — see
+For the full picture with diagrams — components, runtime topology, and a focused page each
+for chat/model routing, vocal mode, sync, and deployment — start at
 [`docs/architecture.md`](./docs/architecture.md).
 
 Chat requests go straight from the browser to Ollama — in dev via Vite's proxy, in
@@ -104,8 +104,8 @@ warning once per device) — needed because `getUserMedia` (vocal mode's mic inp
 secure context, which plain HTTP doesn't satisfy
 ([ADR-0012](./docs/adr/0012-self-signed-tls-for-secure-context.md)). On a fresh server this
 `ollama-chat-tls` Secret doesn't exist yet and must be created by hand — see
-["Bootstrapping a new server"](./docs/architecture.md#bootstrapping-a-new-server-the-tls-secret-and-etchosts-entry)
-in `docs/architecture.md` for the exact `openssl`/`kubectl create secret tls` commands and the
+["Bootstrapping a new server"](./docs/deployment.md#bootstrapping-a-new-server-the-tls-secret-and-etchosts-entry)
+in `docs/deployment.md` for the exact `openssl`/`kubectl create secret tls` commands and the
 required `/etc/hosts` line.
 
 ## Architecture decisions
