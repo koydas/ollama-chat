@@ -13,9 +13,10 @@ for the reasoning behind each of these choices.
 | React/Vite frontend | Conversation UI, message streaming, image attachments, theme/profile | `src/App.jsx`, `src/lib/conversations.js` |
 | Vite dev proxy | Dev-only: forwards `/api/*` to Ollama, `/session` to the local Express server | `vite.config.js` |
 | Express server | Prod: serves `dist/`, proxies `/api/*` to Ollama, persists `/session` | `server/index.js` |
-| Ollama | Runs the actual models; two tags are used: a text model and a vision model | in-cluster `ollama` Service |
-| Whisper | Speech-to-text for vocal mode dictation, proxied at `/api/stt` | in-cluster `whisper` Service |
-| Piper | Text-to-speech for vocal mode replies, proxied at `/api/tts` | in-cluster `piper` Service |
+| homelab-gateway | Single entry point in front of Ollama/Whisper/Piper; routes by request content and exports Prometheus metrics for all three ([ADR-0014](./adr/0014-route-production-traffic-through-homelab-gateway.md)) | `github.com/koydas/homelab-gateway`, in-cluster `homelab-gateway` Service |
+| Ollama | Runs the actual models; two tags are used: a text model and a vision model | in-cluster `ollama` Service, reached via homelab-gateway |
+| Whisper | Speech-to-text for vocal mode dictation, proxied at `/api/stt` | in-cluster `whisper` Service, reached via homelab-gateway |
+| Piper | Text-to-speech for vocal mode replies, proxied at `/api/tts` | in-cluster `piper` Service, reached via homelab-gateway |
 | ArgoCD + GHCR | Builds, publishes, and deploys the app on every push to `main` | `.github/workflows/docker-publish.yml`, `k8s/` |
 
 ## Request flow: sending a chat message
@@ -36,6 +37,11 @@ sequenceDiagram
     P-->>U: streamed NDJSON chunks
     U->>U: append each chunk's content<br/>to the pending assistant message
 ```
+
+In production, `P`'s hop to `O` actually passes through `homelab-gateway` first
+([ADR-0014](./adr/0014-route-production-traffic-through-homelab-gateway.md)), which does its
+own Origin rewrite before forwarding to Ollama — simplified out of this diagram since the
+gateway is a transparent pass-through for this flow.
 
 Two details make this work:
 
@@ -121,6 +127,11 @@ sequenceDiagram
     end
 ```
 
+All three `P->>{W,O,Pi}` hops actually go through `homelab-gateway` in production
+([ADR-0014](./adr/0014-route-production-traffic-through-homelab-gateway.md)), which sniffs
+each request's content-type/body shape to pick the right backend — simplified out of this
+diagram for the same reason as the chat flow above.
+
 A few details that aren't obvious from the code alone:
 
 - **Auto-send, not auto-fill** — dictation used to just populate the input and leave sending
@@ -202,15 +213,25 @@ flowchart TB
             PVC["ollama-chat-session PVC<br/>(session.json)"]
             Pod --- PVC
         end
+        subgraph "homelab-gateway namespace"
+            GatewaySvc["homelab-gateway Service<br/>:80, routes by content"]
+        end
         subgraph "ollama namespace"
             OllamaSvc["ollama Service<br/>:11434"]
+        end
+        subgraph "whisper / piper namespaces"
+            WhisperSvc["whisper Service<br/>:9000"]
+            PiperSvc["piper Service<br/>:8000"]
         end
         SvcLB["Service (LoadBalancer)<br/>192.168.1.244"]
         Ing["ingress-nginx<br/>192.168.1.243<br/>host: ollama-chat.home"]
     end
     Browser -->|http://192.168.1.244| SvcLB --> Pod
     Browser -->|http://ollama-chat.home| Ing --> Pod
-    Pod -->|OLLAMA_URL| OllamaSvc
+    Pod -->|OLLAMA_URL / WHISPER_URL / PIPER_URL| GatewaySvc
+    GatewaySvc --> OllamaSvc
+    GatewaySvc --> WhisperSvc
+    GatewaySvc --> PiperSvc
 ```
 
 Reachable either via a dedicated MetalLB IP (`.244`, zero client-side setup) or through the

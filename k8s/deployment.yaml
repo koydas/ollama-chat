@@ -20,10 +20,17 @@ spec:
           # workflow on every push to main; see docs/adr/0006.
           image: ghcr.io/koydas/ollama-chat:006b013
           env:
+            # Routed through homelab-gateway (not the backends directly) so
+            # its Prometheus metrics cover ollama-chat's traffic too; see
+            # gitops-homelab/apps/homelab-gateway. The gateway forwards each
+            # request on to whichever of ollama/whisper/piper it sniffs from
+            # the request content, at the same paths these proxies already use.
+            - name: OLLAMA_URL
+              value: http://homelab-gateway.homelab-gateway.svc.cluster.local:80
             - name: WHISPER_URL
-              value: http://whisper.whisper.svc.cluster.local:9000
+              value: http://homelab-gateway.homelab-gateway.svc.cluster.local:80
             - name: PIPER_URL
-              value: http://piper.piper.svc.cluster.local:8000
+              value: http://homelab-gateway.homelab-gateway.svc.cluster.local:80
           ports:
             - containerPort: 8080
             - containerPort: 8443
