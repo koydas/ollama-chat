@@ -20,3 +20,4 @@ Architecture Decision Records (ADR) for `ollama-chat`.
 - [ADR-0014: Route production traffic through homelab-gateway](./0014-route-production-traffic-through-homelab-gateway.md)
 - [ADR-0015: Downscale image attachments client-side before storing or sending](./0015-resize-images-before-storing.md)
 - [ADR-0016: Switch the vision model to `llava:7b`](./0016-switch-vision-model-to-llava.md)
+- [ADR-0017: End-to-end tests for the Express proxy server, gated in CI](./0017-e2e-tests-for-the-express-proxy-server.md)

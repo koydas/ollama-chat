@@ -61,7 +61,7 @@ Point Vite's dev proxy at your Ollama host — edit the `target` in `vite.config
 ```
 npm run dev       # frontend only, proxies /api to Ollama — no backend needed to chat
 npm run dev:all   # frontend + session-sync backend (needed to exercise "Sauvegarder sur le serveur")
-npm test          # vitest
+npm test          # vitest: unit (src/lib) + React integration (src/App.test.jsx) + server e2e (server/index.e2e.test.js)
 npm run lint      # oxlint
 npm run build     # production build to dist/
 npm run preview   # preview the production build locally
@@ -74,6 +74,7 @@ npm run preview   # preview the production build locally
 | `src/App.jsx` | The whole UI — conversation list, message stream, input bar, profile menu |
 | `src/lib/conversations.js` | Pure, unit-tested helpers: storage keys, model routing (`pickModel`), Ollama payload shaping (`toOllamaMessage`), conversation/title helpers |
 | `server/index.js` | Express: proxies `/api/*` to Ollama, serves `dist/` in production, persists `/session` |
+| `server/index.e2e.test.js` | Real app + fake Ollama/Whisper/Piper backends — proxy routing, Origin rewrite, `/session` persistence (see [ADR-0017](./docs/adr/0017-e2e-tests-for-the-express-proxy-server.md)) |
 | `k8s/` | Kustomize manifests (Deployment, Service, Ingress, PVC) for the in-cluster deployment |
 | `docs/adr/` | Architecture Decision Records — the "why" behind every non-obvious choice in this repo |
 
