@@ -18,3 +18,4 @@ Architecture Decision Records (ADR) for `ollama-chat`.
 - [ADR-0012: Self-signed TLS on the Ingress, so vocal mode gets a secure context](./0012-self-signed-tls-for-secure-context.md)
 - [ADR-0013: Prime the shared `<audio>` element inside click handlers to survive autoplay policy](./0013-audio-unlock-for-autoplay-policy.md)
 - [ADR-0014: Route production traffic through homelab-gateway](./0014-route-production-traffic-through-homelab-gateway.md)
+- [ADR-0015: Downscale image attachments client-side before storing or sending](./0015-resize-images-before-storing.md)

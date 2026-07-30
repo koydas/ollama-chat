@@ -19,6 +19,7 @@ import {
   PROFILE_NAME_KEY,
   SERVER_SYNC_KEY,
   THEME_KEY,
+  resizeImageDataUrl,
   toOllamaMessage,
   VOICE_MODE_KEY,
 } from './lib/conversations'
@@ -74,7 +75,14 @@ function App() {
   }, [messages])
 
   useEffect(() => {
-    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations))
+    try {
+      localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations))
+    } catch (err) {
+      // No error boundary in this app — an uncaught exception here (e.g.
+      // quota exceeded) would otherwise crash the whole tree to a blank,
+      // unresponsive page instead of surfacing as a visible error.
+      setError(`Error: could not save conversation locally (${err.message})`)
+    }
   }, [conversations])
 
   useEffect(() => {
@@ -345,8 +353,9 @@ function App() {
     e.target.value = ''
     for (const file of files) {
       const reader = new FileReader()
-      reader.onload = () => {
-        setAttachments((prev) => [...prev, { id: makeId(), dataUrl: reader.result }])
+      reader.onload = async () => {
+        const dataUrl = await resizeImageDataUrl(reader.result)
+        setAttachments((prev) => [...prev, { id: makeId(), dataUrl }])
       }
       reader.readAsDataURL(file)
     }

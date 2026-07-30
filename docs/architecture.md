@@ -64,13 +64,18 @@ this decision is the only "model selection" that happens anywhere in the app.
 ## Image attachments
 
 Images are read client-side into full data URLs (`data:image/...;base64,...`) so they can be
-rendered directly in `<img>` tags and stored alongside conversation history. Ollama, however,
+rendered directly in `<img>` tags and stored alongside conversation history. Before that,
+`resizeImageDataUrl()` downscales anything over 1024px on the long edge and re-encodes as
+JPEG (falling back to the original on any decode failure/timeout) — full-resolution photos
+both overflow the vision model's context window and risk stalling/crashing the tab's
+`localStorage` write ([ADR-0015](./adr/0015-resize-images-before-storing.md)). Ollama, however,
 expects bare base64 with no prefix — that conversion happens in exactly one place,
 `toOllamaMessage()`, right before a request is sent ([ADR-0008](./adr/0008-image-attachments-as-data-urls.md)).
 
 ```mermaid
 flowchart LR
-    F[File picked] -->|FileReader.readAsDataURL| D["data:image/png;base64,AAAA..."<br/>stored on message.images]
+    F[File picked] -->|FileReader.readAsDataURL| R[resizeImageDataUrl:<br/>downscale to 1024px, JPEG]
+    R --> D["data:image/jpeg;base64,AAAA..."<br/>stored on message.images]
     D -->|rendered as-is| IMG["&lt;img src=...&gt;"]
     D -->|toOllamaMessage strips prefix| B["bare base64: AAAA..."<br/>sent as message.images to Ollama]
 ```

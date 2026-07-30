@@ -116,6 +116,60 @@ export function loadAutoReadReplies() {
   }
 }
 
+// Full-resolution camera photos cause two separate problems: they can push
+// the vision model's encoded token count past its fixed context window
+// (see gitops-homelab ADR-0019), and storing them as-is means every
+// conversations-state change re-serializes multi-MB base64 strings into
+// localStorage synchronously, which can stall or crash the tab (no error
+// boundary in this app). Downscale before ever storing/sending. Falls back
+// to the original data URL — rather than blocking the attachment — if
+// decoding fails or takes too long (e.g. no real image decoder available,
+// as in this repo's jsdom test environment).
+export const MAX_IMAGE_DIMENSION = 1024
+export const IMAGE_JPEG_QUALITY = 0.8
+const RESIZE_TIMEOUT_MS = 1500
+
+export function resizeImageDataUrl(
+  dataUrl,
+  maxDimension = MAX_IMAGE_DIMENSION,
+  quality = IMAGE_JPEG_QUALITY,
+) {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      resolve(result)
+    }
+    const timeoutId = setTimeout(() => finish(dataUrl), RESIZE_TIMEOUT_MS)
+
+    const img = new Image()
+    img.onload = () => {
+      clearTimeout(timeoutId)
+      const scale = Math.min(1, maxDimension / Math.max(img.width, img.height))
+      if (scale === 1) {
+        finish(dataUrl)
+        return
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        finish(dataUrl)
+        return
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      finish(canvas.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = () => {
+      clearTimeout(timeoutId)
+      finish(dataUrl)
+    }
+    img.src = dataUrl
+  })
+}
+
 // Ollama expects `images` as bare base64 strings, but the app stores full
 // data URLs (so they can be rendered directly in <img src>) — strip the
 // `data:image/...;base64,` prefix only when building the wire payload.

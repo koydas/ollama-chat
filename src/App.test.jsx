@@ -59,10 +59,25 @@ function mockFetch({ chatChunks, sttText } = {}) {
   })
 }
 
+// jsdom has no real image decoder, so a real `Image().onload` never fires
+// for these tests' fake file bytes — stub it to fail fast via `onerror`
+// (resizeImageDataUrl falls back to the original data URL) rather than
+// waiting out its safety-net timeout on every test that attaches a file.
+class FakeImage {
+  set src(value) {
+    this._src = value
+    queueMicrotask(() => this.onerror?.())
+  }
+  get src() {
+    return this._src
+  }
+}
+
 beforeEach(() => {
   localStorage.clear()
   FakeMediaRecorder.instances.length = 0
   vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
+  vi.stubGlobal('Image', FakeImage)
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
     value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [] }) },

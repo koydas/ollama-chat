@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CONVERSATIONS_KEY,
   DEFAULT_PROFILE_NAME,
@@ -15,6 +15,7 @@ import {
   mostRecentId,
   pickModel,
   PROFILE_NAME_KEY,
+  resizeImageDataUrl,
   SERVER_SYNC_KEY,
   TEXT_MODEL,
   THEME_KEY,
@@ -246,6 +247,89 @@ describe('toOllamaMessage', () => {
       role: 'user',
       content: 'salut',
     })
+  })
+})
+
+describe('resizeImageDataUrl', () => {
+  const originalImage = global.Image
+  const originalCreateElement = document.createElement.bind(document)
+
+  afterEach(() => {
+    global.Image = originalImage
+    document.createElement = originalCreateElement
+    vi.useRealTimers()
+  })
+
+  function stubImage({ width, height, mode = 'load' }) {
+    class FakeImage {
+      set src(value) {
+        this._src = value
+        queueMicrotask(() => {
+          if (mode === 'error') this.onerror?.()
+          else if (mode === 'hang') return
+          else this.onload?.()
+        })
+      }
+      get src() {
+        return this._src
+      }
+    }
+    FakeImage.prototype.width = width
+    FakeImage.prototype.height = height
+    global.Image = FakeImage
+  }
+
+  function stubCanvas({ ctxAvailable = true } = {}) {
+    const ctx = { drawImage: vi.fn() }
+    const toDataURL = vi.fn(() => 'data:image/jpeg;base64,RESIZED')
+    let created = null
+    document.createElement = (tag) => {
+      if (tag === 'canvas') {
+        created = { width: 0, height: 0, getContext: () => (ctxAvailable ? ctx : null), toDataURL }
+        return created
+      }
+      return originalCreateElement(tag)
+    }
+    return { ctx, toDataURL, getCanvas: () => created }
+  }
+
+  it('returns the original data URL unchanged when already within the max dimension', async () => {
+    stubImage({ width: 800, height: 600 })
+    const result = await resizeImageDataUrl('data:image/png;base64,ORIGINAL', 1024)
+    expect(result).toBe('data:image/png;base64,ORIGINAL')
+  })
+
+  it('downscales an oversized image, preserving aspect ratio, and re-encodes as JPEG', async () => {
+    stubImage({ width: 4000, height: 2000 })
+    const { ctx, toDataURL, getCanvas } = stubCanvas()
+    const result = await resizeImageDataUrl('data:image/png;base64,BIG', 1024, 0.8)
+    const canvas = getCanvas()
+    expect(canvas.width).toBe(1024)
+    expect(canvas.height).toBe(512)
+    expect(ctx.drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 1024, 512)
+    expect(toDataURL).toHaveBeenCalledWith('image/jpeg', 0.8)
+    expect(result).toBe('data:image/jpeg;base64,RESIZED')
+  })
+
+  it('falls back to the original data URL when a 2D context is unavailable', async () => {
+    stubImage({ width: 4000, height: 2000 })
+    stubCanvas({ ctxAvailable: false })
+    const result = await resizeImageDataUrl('data:image/png;base64,BIG')
+    expect(result).toBe('data:image/png;base64,BIG')
+  })
+
+  it('falls back to the original data URL if the image fails to decode', async () => {
+    stubImage({ width: 0, height: 0, mode: 'error' })
+    const result = await resizeImageDataUrl('data:image/png;base64,BROKEN')
+    expect(result).toBe('data:image/png;base64,BROKEN')
+  })
+
+  it('falls back to the original data URL if decoding never completes', async () => {
+    vi.useFakeTimers()
+    stubImage({ width: 0, height: 0, mode: 'hang' })
+    const promise = resizeImageDataUrl('data:image/png;base64,STUCK')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(await promise).toBe('data:image/png;base64,STUCK')
   })
 })
 
