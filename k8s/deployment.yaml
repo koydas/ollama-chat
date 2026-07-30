@@ -18,7 +18,7 @@ spec:
         - name: ollama-chat
           # Tag is rewritten to the built commit SHA by the docker-publish
           # workflow on every push to main; see docs/adr/0006.
-          image: ghcr.io/koydas/ollama-chat:30f2c46
+          image: ghcr.io/koydas/ollama-chat:c2cc67b
           env:
             # Routed through homelab-gateway (not the backends directly) so
             # its Prometheus metrics cover ollama-chat's traffic too; see
