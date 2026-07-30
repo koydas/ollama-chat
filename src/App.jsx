@@ -20,6 +20,7 @@ import {
   SERVER_SYNC_KEY,
   THEME_KEY,
   resizeImageDataUrl,
+  stripImages,
   toOllamaMessage,
   VOICE_MODE_KEY,
 } from './lib/conversations'
@@ -77,11 +78,24 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations))
-    } catch (err) {
+    } catch {
       // No error boundary in this app — an uncaught exception here (e.g.
       // quota exceeded) would otherwise crash the whole tree to a blank,
       // unresponsive page instead of surfacing as a visible error.
-      setError(`Error: could not save conversation locally (${err.message})`)
+      // Old images attached before ADR-0015's resize can alone be large
+      // enough to blow the quota — strip embedded images (by far the
+      // biggest contributor) and retry once, updating state too so this
+      // doesn't repeat on every future save.
+      const stripped = stripImages(conversations)
+      try {
+        localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(stripped))
+        setConversations(stripped)
+        setError(
+          "Stockage local plein : les anciennes images jointes ont été retirées de l'historique pour libérer de la place (le texte des conversations est conservé).",
+        )
+      } catch (err2) {
+        setError(`Error: could not save conversation locally (${err2.message})`)
+      }
     }
   }, [conversations])
 

@@ -72,3 +72,19 @@ photo) users will hit by default.
   4103-token failure and the model's documented `image_max_pixels: 3211264` (Ollama's own
   Modelfile default for `qwen2.5vl:3b`). Revisit with real measurements if a future image still
   overflows the context window.
+
+## Follow-up (same day)
+
+This fix only shrinks *newly*-attached images. The operator's browser still had the original
+full-resolution photo from the incident stored in `localStorage` from before this fix existed,
+and it alone was large enough to push every subsequent save over the browser's quota — visible
+as `Error: could not save conversation locally (the quota has been exceeded)` on effectively
+every future state change, since the `try/catch` from this same ADR was working as intended
+(no crash) but had nothing to actually recover with.
+
+Added `stripImages()` (`src/lib/conversations.js`): on a `localStorage` write failure, drop
+embedded image data from every message (by far the largest contributor) and retry once,
+updating React state to match so the stripped result — not the original oversized one — is
+what future saves are based on. Loses old image thumbnails on reload but keeps all text intact,
+and self-heals without requiring the operator to manually clear browser storage. Surfaces as an
+info-style message via the same `error` banner rather than a new UI element.

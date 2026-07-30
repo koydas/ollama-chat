@@ -170,6 +170,20 @@ export function resizeImageDataUrl(
   })
 }
 
+// Last-resort recovery when the full conversations array won't fit in
+// localStorage: embedded image data URLs are by far the largest
+// contributor, and old ones (attached before ADR-0015's resize) can push
+// total size well past the quota even though resizing now keeps *new*
+// attachments small. Drops all embedded images and retries once rather
+// than failing the save (and re-showing the same error) on every future
+// state change -- loses old image thumbnails on reload, keeps all text.
+export function stripImages(conversations) {
+  return conversations.map((c) => ({
+    ...c,
+    messages: c.messages.map(({ images: _images, ...rest }) => rest),
+  }))
+}
+
 // Ollama expects `images` as bare base64 strings, but the app stores full
 // data URLs (so they can be rendered directly in <img src>) — strip the
 // `data:image/...;base64,` prefix only when building the wire payload.

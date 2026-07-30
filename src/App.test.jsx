@@ -185,6 +185,41 @@ describe('App', () => {
     })
   })
 
+  it('recovers from a localStorage quota error by stripping old images, keeping text', async () => {
+    const stored = [
+      {
+        id: 'a',
+        title: 'Chat photo',
+        updatedAt: 1000,
+        messages: [
+          { role: 'user', content: 'une vieille photo', images: ['data:image/jpeg;base64,AAAA'] },
+        ],
+      },
+    ]
+    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(stored))
+
+    const realSetItem = Storage.prototype.setItem.bind(localStorage)
+    let quotaHit = false
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => {
+      if (key === CONVERSATIONS_KEY && !quotaHit) {
+        quotaHit = true
+        throw new DOMException('quota exceeded', 'QuotaExceededError')
+      }
+      realSetItem(key, value)
+    })
+
+    vi.stubGlobal('fetch', mockFetch())
+    render(<App />)
+
+    await screen.findByText('Chat')
+    expect(await screen.findByText(/Stockage local plein/)).toBeInTheDocument()
+    expect(screen.getByText('une vieille photo')).toBeInTheDocument()
+
+    const saved = JSON.parse(localStorage.getItem(CONVERSATIONS_KEY))
+    expect(saved[0].messages[0].images).toBeUndefined()
+    expect(saved[0].messages[0].content).toBe('une vieille photo')
+  })
+
   it('edits a user message, drops the old reply and regenerates it', async () => {
     const user = userEvent.setup()
     const fetchMock = vi.fn((url, opts) => {

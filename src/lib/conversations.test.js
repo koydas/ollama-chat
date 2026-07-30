@@ -17,6 +17,7 @@ import {
   PROFILE_NAME_KEY,
   resizeImageDataUrl,
   SERVER_SYNC_KEY,
+  stripImages,
   TEXT_MODEL,
   THEME_KEY,
   toOllamaMessage,
@@ -218,6 +219,53 @@ describe('loadVoiceMode', () => {
     expect(loadVoiceMode()).toBe('vocal')
     localStorage.setItem(VOICE_MODE_KEY, 'something-else')
     expect(loadVoiceMode()).toBe('text')
+  })
+})
+
+describe('stripImages', () => {
+  it('removes images from every message but keeps everything else intact', () => {
+    const conversations = [
+      {
+        id: 'c1',
+        title: 'Chat photo',
+        updatedAt: 123,
+        messages: [
+          { role: 'user', content: "qu'est-ce que c'est ?", images: ['data:image/jpeg;base64,AAAA'] },
+          { role: 'assistant', content: 'Un chat.' },
+        ],
+      },
+      {
+        id: 'c2',
+        title: 'Autre conversation',
+        updatedAt: 456,
+        messages: [{ role: 'user', content: 'salut', images: ['data:image/jpeg;base64,BBBB'] }],
+      },
+    ]
+
+    expect(stripImages(conversations)).toEqual([
+      {
+        id: 'c1',
+        title: 'Chat photo',
+        updatedAt: 123,
+        messages: [
+          { role: 'user', content: "qu'est-ce que c'est ?" },
+          { role: 'assistant', content: 'Un chat.' },
+        ],
+      },
+      {
+        id: 'c2',
+        title: 'Autre conversation',
+        updatedAt: 456,
+        messages: [{ role: 'user', content: 'salut' }],
+      },
+    ])
+  })
+
+  it('leaves messages without images untouched', () => {
+    const conversations = [
+      { id: 'c1', title: '', updatedAt: 1, messages: [{ role: 'user', content: 'salut' }] },
+    ]
+    expect(stripImages(conversations)).toEqual(conversations)
   })
 })
 
