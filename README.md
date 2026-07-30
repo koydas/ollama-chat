@@ -1,6 +1,7 @@
 # ollama-chat
 
 [![e2e](https://github.com/koydas/ollama-chat/actions/workflows/e2e.yml/badge.svg)](https://github.com/koydas/ollama-chat/actions/workflows/e2e.yml)
+[![build/deploy](https://github.com/koydas/ollama-chat/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/koydas/ollama-chat/actions/workflows/docker-publish.yml)
 
 A React/Vite chat UI for a homelab [Ollama](https://ollama.com) instance, with a tiny
 Express backend for opt-in server-side session sync. Built for one person, one Ollama
