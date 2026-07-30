@@ -775,7 +775,7 @@ function App() {
             disabled={isStreaming}
             aria-label="Joindre une image"
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
             </svg>
           </button>
@@ -806,12 +806,12 @@ function App() {
                 aria-busy={isTranscribing}
               >
                 {isTranscribing ? (
-                  <svg className="speak-spinner" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <svg className="speak-spinner" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <circle cx="12" cy="12" r="9" strokeOpacity="0.25"></circle>
                     <path d="M21 12a9 9 0 0 0-9-9"></path>
                   </svg>
                 ) : (
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="9" y="2" width="6" height="12" rx="3"></rect>
                     <path d="M5 10a7 7 0 0 0 14 0"></path>
                     <line x1="12" y1="19" x2="12" y2="22"></line>
@@ -825,7 +825,7 @@ function App() {
                 disabled={isStreaming || (!input.trim() && attachments.length === 0)}
                 aria-label="Send"
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="19" x2="12" y2="5"></line>
                   <polyline points="5 12 12 5 19 12"></polyline>
                 </svg>
