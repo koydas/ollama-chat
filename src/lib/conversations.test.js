@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  CHAT_MODE_KEY,
+  CLAUDE_MODEL,
   CONVERSATIONS_KEY,
   DEFAULT_PROFILE_NAME,
   deriveTitle,
   formatRelativeTime,
   LEGACY_MESSAGES_KEY,
+  loadChatMode,
   loadConversations,
   loadProfileName,
   loadServerSync,
   loadTheme,
-  loadVoiceMode,
   makeConversation,
   makeId,
   mostRecentId,
@@ -20,9 +22,9 @@ import {
   stripImages,
   TEXT_MODEL,
   THEME_KEY,
+  toClaudeMessage,
   toOllamaMessage,
   VISION_MODEL,
-  VOICE_MODE_KEY,
 } from './conversations'
 
 beforeEach(() => {
@@ -209,16 +211,18 @@ describe('loadServerSync', () => {
   })
 })
 
-describe('loadVoiceMode', () => {
+describe('loadChatMode', () => {
   it('defaults to text', () => {
-    expect(loadVoiceMode()).toBe('text')
+    expect(loadChatMode()).toBe('text')
   })
 
-  it('returns vocal only when stored as exactly "vocal"', () => {
-    localStorage.setItem(VOICE_MODE_KEY, 'vocal')
-    expect(loadVoiceMode()).toBe('vocal')
-    localStorage.setItem(VOICE_MODE_KEY, 'something-else')
-    expect(loadVoiceMode()).toBe('text')
+  it('returns vocal or claude only when stored as exactly one of those', () => {
+    localStorage.setItem(CHAT_MODE_KEY, 'vocal')
+    expect(loadChatMode()).toBe('vocal')
+    localStorage.setItem(CHAT_MODE_KEY, 'claude')
+    expect(loadChatMode()).toBe('claude')
+    localStorage.setItem(CHAT_MODE_KEY, 'something-else')
+    expect(loadChatMode()).toBe('text')
   })
 })
 
@@ -309,6 +313,52 @@ describe('toOllamaMessage', () => {
       role: 'user',
       content: 'salut',
     })
+  })
+})
+
+describe('toClaudeMessage', () => {
+  it('passes text-only messages through unchanged', () => {
+    expect(toClaudeMessage({ role: 'user', content: 'salut' })).toEqual({
+      role: 'user',
+      content: 'salut',
+    })
+  })
+
+  it('builds image blocks (with parsed media type) followed by a text block', () => {
+    const message = {
+      role: 'user',
+      content: "qu'est-ce que c'est ?",
+      images: ['data:image/png;base64,AAAA', 'data:image/jpeg;base64,BBBB'],
+    }
+    expect(toClaudeMessage(message)).toEqual({
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'BBBB' } },
+        { type: 'text', text: "qu'est-ce que c'est ?" },
+      ],
+    })
+  })
+
+  it('omits the text block when there is no text, keeping only image blocks', () => {
+    const message = { role: 'user', content: '', images: ['data:image/jpeg;base64,AAAA'] }
+    expect(toClaudeMessage(message)).toEqual({
+      role: 'user',
+      content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' } }],
+    })
+  })
+
+  it('treats an empty images array the same as no images', () => {
+    expect(toClaudeMessage({ role: 'user', content: 'salut', images: [] })).toEqual({
+      role: 'user',
+      content: 'salut',
+    })
+  })
+})
+
+describe('CLAUDE_MODEL', () => {
+  it('is a claude- prefixed model id (relied on by homelab-gateway\'s content-sniff routing)', () => {
+    expect(CLAUDE_MODEL.startsWith('claude-')).toBe(true)
   })
 })
 

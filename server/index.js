@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk'
 import express from 'express'
 import fs from 'node:fs'
 import https from 'node:https'
@@ -18,6 +19,14 @@ const DIST_DIR = path.join(__dirname, '..', 'dist')
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama.ollama.svc.cluster.local:11434'
 const WHISPER_URL = process.env.WHISPER_URL || 'http://whisper.whisper.svc.cluster.local:9000'
 const PIPER_URL = process.env.PIPER_URL || 'http://piper.piper.svc.cluster.local:8000'
+// Unset in local dev (talks to Anthropic directly); in production this is
+// homelab-gateway, same as the three URLs above — see ADR-0018 and
+// homelab-gateway's ADR-0003.
+const CLAUDE_URL = process.env.CLAUDE_URL
+// Hard cap on thinking + response tokens combined (Claude Opus 5 runs
+// adaptive thinking by default) — generous enough that a normal chat
+// question isn't truncated mid-thought, without leaving cost unbounded.
+const CLAUDE_MAX_TOKENS = 8192
 
 const app = express()
 
@@ -40,6 +49,52 @@ app.use(
     pathRewrite: { '^/api/tts': '/tts' },
   }),
 )
+
+// Registered before the generic /api proxy below (same reason as
+// /api/stt and /api/tts): that proxy's pathFilter would otherwise swallow
+// this route too. Unlike the Ollama/Whisper/Piper proxies, this isn't a
+// passthrough -- it re-shapes Anthropic's SSE stream into the same NDJSON
+// delta shape Ollama already sends (`{"message":{"content":"..."}}\n` per
+// chunk), so the frontend's streamReply() needs no per-provider parsing
+// branch. express.json() is scoped to just this route, not applied
+// globally before it, since the passthrough proxies above need the raw
+// request stream untouched. See ADR-0018.
+app.post('/api/claude-chat', express.json({ limit: '25mb' }), async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured on the server' })
+    return
+  }
+
+  const anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    ...(CLAUDE_URL ? { baseURL: CLAUDE_URL } : {}),
+  })
+
+  try {
+    const stream = anthropic.messages.stream({
+      model: req.body.model,
+      max_tokens: CLAUDE_MAX_TOKENS,
+      messages: req.body.messages,
+    })
+
+    res.setHeader('Content-Type', 'application/x-ndjson')
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        res.write(`${JSON.stringify({ message: { content: event.delta.text } })}\n`)
+      }
+    }
+    res.end()
+  } catch (err) {
+    // A failure mid-stream has already sent headers (and possibly partial
+    // NDJSON lines) -- there's no valid response left to send but a plain
+    // end(), same as an aborted Ollama stream would leave the client with.
+    if (res.headersSent) {
+      res.end()
+    } else {
+      res.status(502).json({ error: `Claude request failed: ${err.message}` })
+    }
+  }
+})
 
 // Mounted at the app root (not app.use('/api', ...)) with pathFilter instead:
 // Express strips the mount path from req.url, which would forward requests

@@ -3,15 +3,17 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   AUTO_READ_REPLIES_KEY,
+  CHAT_MODE_KEY,
+  CLAUDE_MODEL,
   CONVERSATIONS_KEY,
   deriveTitle,
   formatRelativeTime,
   loadAutoReadReplies,
+  loadChatMode,
   loadConversations,
   loadProfileName,
   loadServerSync,
   loadTheme,
-  loadVoiceMode,
   makeConversation,
   makeId,
   mostRecentId,
@@ -21,8 +23,8 @@ import {
   THEME_KEY,
   resizeImageDataUrl,
   stripImages,
+  toClaudeMessage,
   toOllamaMessage,
-  VOICE_MODE_KEY,
 } from './lib/conversations'
 import './App.css'
 
@@ -40,7 +42,7 @@ function App() {
   const [theme, setTheme] = useState(loadTheme)
   const [serverSync, setServerSync] = useState(loadServerSync)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
-  const [voiceMode, setVoiceMode] = useState(loadVoiceMode)
+  const [chatMode, setChatMode] = useState(loadChatMode)
   const [autoReadReplies, setAutoReadReplies] = useState(loadAutoReadReplies)
   const [isListening, setIsListening] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
@@ -118,8 +120,8 @@ function App() {
   }, [serverSync])
 
   useEffect(() => {
-    localStorage.setItem(VOICE_MODE_KEY, voiceMode)
-  }, [voiceMode])
+    localStorage.setItem(CHAT_MODE_KEY, chatMode)
+  }, [chatMode])
 
   useEffect(() => {
     localStorage.setItem(AUTO_READ_REPLIES_KEY, String(autoReadReplies))
@@ -128,11 +130,11 @@ function App() {
   // Leaving vocal mode mid-dictation or mid-playback should stop both rather
   // than let them run on invisibly in the background.
   useEffect(() => {
-    if (voiceMode === 'vocal') return
+    if (chatMode === 'vocal') return
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
     audioPlayerRef.current?.pause()
     setIsListening(false)
-  }, [voiceMode])
+  }, [chatMode])
 
   // Fetch TTS audio from the Piper proxy and play it through the shared
   // <audio> element. onStart fires once playback actually begins (the fetch
@@ -188,13 +190,13 @@ function App() {
   // finishes, but only for a reply that just streamed in this session — not
   // on mount/history load.
   useEffect(() => {
-    if (wasStreamingRef.current && !isStreaming && voiceMode === 'vocal' && autoReadReplies) {
+    if (wasStreamingRef.current && !isStreaming && chatMode === 'vocal' && autoReadReplies) {
       const lastIndex = messages.length - 1
       const last = messages[lastIndex]
       if (last?.role === 'assistant' && last.content) speakMessageAt(lastIndex, last.content)
     }
     wasStreamingRef.current = isStreaming
-  }, [isStreaming, voiceMode, autoReadReplies, messages])
+  }, [isStreaming, chatMode, autoReadReplies, messages])
 
   function handleSpeakMessage(i, text) {
     if (speakingIndex === i || loadingSpeakIndex === i) {
@@ -307,25 +309,29 @@ function App() {
     setProfileMenuOpen(false)
   }
 
-  // Sends `messagesForModel` to Ollama and streams the reply into the
-  // conversation's last message, which must already be the empty assistant
-  // placeholder. Shared by handleSend and edit-triggered regeneration so
-  // both paths stream and error-handle identically.
+  // Sends `messagesForModel` to Ollama (or Claude, in `claude` mode) and
+  // streams the reply into the conversation's last message, which must
+  // already be the empty assistant placeholder. Shared by handleSend and
+  // edit-triggered regeneration so both paths stream and error-handle
+  // identically. The Claude proxy (server/index.js) re-emits Anthropic's
+  // SSE stream in the same NDJSON delta shape Ollama already sends, so the
+  // parsing loop below needs no per-provider branch — see ADR-0018.
   async function streamReply(convId, messagesForModel) {
     setError('')
     setIsStreaming(true)
     try {
-      const res = await fetch('/api/chat', {
+      const isClaude = chatMode === 'claude'
+      const res = await fetch(isClaude ? '/api/claude-chat' : '/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: pickModel(messagesForModel),
-          messages: messagesForModel.map(toOllamaMessage),
-          stream: true,
-        }),
+        body: JSON.stringify(
+          isClaude
+            ? { model: CLAUDE_MODEL, messages: messagesForModel.map(toClaudeMessage), stream: true }
+            : { model: pickModel(messagesForModel), messages: messagesForModel.map(toOllamaMessage), stream: true },
+        ),
       })
 
-      if (!res.ok) throw new Error(`Ollama returned ${res.status}`)
+      if (!res.ok) throw new Error(`${isClaude ? 'Claude' : 'Ollama'} returned ${res.status}`)
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -514,7 +520,7 @@ function App() {
 
   const sortedConversations = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt)
   const showMicButton =
-    voiceMode === 'vocal' && (isListening || isTranscribing || (!input.trim() && attachments.length === 0))
+    chatMode === 'vocal' && (isListening || isTranscribing || (!input.trim() && attachments.length === 0))
 
   return (
     <div className="app">
@@ -538,11 +544,12 @@ function App() {
           <select
             className="mode-select"
             aria-label="Mode"
-            value={voiceMode}
-            onChange={(e) => setVoiceMode(e.target.value)}
+            value={chatMode}
+            onChange={(e) => setChatMode(e.target.value)}
           >
             <option value="text">Chat</option>
             <option value="vocal">Vocal</option>
+            <option value="claude">Claude</option>
           </select>
           <button
             type="button"

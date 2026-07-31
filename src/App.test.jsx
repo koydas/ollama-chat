@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { CONVERSATIONS_KEY, PROFILE_NAME_KEY, THEME_KEY, VOICE_MODE_KEY } from './lib/conversations'
+import { CHAT_MODE_KEY, CLAUDE_MODEL, CONVERSATIONS_KEY, PROFILE_NAME_KEY, THEME_KEY } from './lib/conversations'
 
 class FakeMediaRecorder {
   constructor(stream) {
@@ -39,13 +39,16 @@ function streamResponse(chunks) {
   return new Response(stream, { status: 200 })
 }
 
-function mockFetch({ chatChunks, sttText } = {}) {
+function mockFetch({ chatChunks, claudeChunks, sttText } = {}) {
   return vi.fn((url) => {
     if (url === '/api/tags') {
       return Promise.resolve(new Response(JSON.stringify(MODELS_RESPONSE), { status: 200 }))
     }
     if (url === '/api/chat') {
       return Promise.resolve(streamResponse(chatChunks ?? ['{"message":{"content":"Bonjour"}}\n']))
+    }
+    if (url === '/api/claude-chat') {
+      return Promise.resolve(streamResponse(claudeChunks ?? ['{"message":{"content":"Bonjour"}}\n']))
     }
     if (typeof url === 'string' && url.startsWith('/api/stt')) {
       return Promise.resolve(
@@ -103,6 +106,7 @@ describe('App', () => {
     expect(modeSelect).toHaveValue('text')
     expect(screen.getByRole('option', { name: 'Chat' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Vocal' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Claude' })).toBeInTheDocument()
   })
 
   it('sends a message and displays the streamed assistant reply, using the text model', async () => {
@@ -393,7 +397,7 @@ describe('voice mode', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Mode' }), 'vocal')
 
     expect(screen.getByRole('button', { name: 'Dicter un message' })).toBeInTheDocument()
-    expect(localStorage.getItem(VOICE_MODE_KEY)).toBe('vocal')
+    expect(localStorage.getItem(CHAT_MODE_KEY)).toBe('vocal')
   })
 
   it('swaps the mic icon for the send icon once text is typed, and back once cleared', async () => {
@@ -519,5 +523,40 @@ describe('voice mode', () => {
     await waitFor(() => expect(screen.getByText('Bonjour')).toBeInTheDocument())
 
     expect(fetchMock.mock.calls.some((c) => c[0] === '/api/tts')).toBe(false)
+  })
+})
+
+describe('Claude mode', () => {
+  it('sends a message to /api/claude-chat instead of /api/chat, using CLAUDE_MODEL and Claude-shaped content', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockFetch({ claudeChunks: ['{"message":{"content":"Bonjour"}}\n', '{"message":{"content":" !"}}\n'] })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    await screen.findByText('Chat')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Mode' }), 'claude')
+    await user.type(screen.getByPlaceholderText('Type a message...'), 'salut')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(await screen.findByText('salut')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('Bonjour !')).toBeInTheDocument())
+
+    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/chat')).toBe(false)
+    const claudeCall = fetchMock.mock.calls.find((c) => c[0] === '/api/claude-chat')
+    const body = JSON.parse(claudeCall[1].body)
+    expect(body.model).toBe(CLAUDE_MODEL)
+    expect(body.messages).toEqual([{ role: 'user', content: 'salut' }])
+  })
+
+  it('persists the Claude mode choice and shows no mic button (it is not a voice mode)', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', mockFetch())
+    render(<App />)
+
+    await screen.findByText('Chat')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Mode' }), 'claude')
+
+    expect(localStorage.getItem(CHAT_MODE_KEY)).toBe('claude')
+    expect(screen.queryByRole('button', { name: 'Dicter un message' })).not.toBeInTheDocument()
   })
 })

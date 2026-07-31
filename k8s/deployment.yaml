@@ -31,6 +31,15 @@ spec:
               value: http://homelab-gateway.homelab-gateway.svc.cluster.local:80
             - name: PIPER_URL
               value: http://homelab-gateway.homelab-gateway.svc.cluster.local:80
+            - name: CLAUDE_URL
+              value: http://homelab-gateway.homelab-gateway.svc.cluster.local:80
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  # Created once out-of-band (never in Git) -- see docs/adr/0018
+                  # and the runbook's "Set up the Claude API key" task.
+                  name: ollama-chat-anthropic
+                  key: ANTHROPIC_API_KEY
           ports:
             - containerPort: 8080
             - containerPort: 8443

@@ -3,7 +3,10 @@ export const CONVERSATIONS_KEY = 'ollama-chat-conversations'
 export const PROFILE_NAME_KEY = 'ollama-chat-profile-name'
 export const THEME_KEY = 'ollama-chat-theme'
 export const SERVER_SYNC_KEY = 'ollama-chat-server-sync'
-export const VOICE_MODE_KEY = 'ollama-chat-voice-mode'
+// Value kept as the pre-existing "voice-mode" key (not renamed) so an
+// existing user's stored preference isn't silently reset now that this
+// holds a third, non-voice-related value ('claude') — see ADR-0018.
+export const CHAT_MODE_KEY = 'ollama-chat-voice-mode'
 export const AUTO_READ_REPLIES_KEY = 'ollama-chat-auto-read-replies'
 export const DEFAULT_PROFILE_NAME = 'Vous'
 
@@ -12,6 +15,9 @@ export const DEFAULT_PROFILE_NAME = 'Vous'
 // model otherwise.
 export const TEXT_MODEL = 'llama3.1:8b-instruct-q4_0'
 export const VISION_MODEL = 'llava:7b'
+// Claude is natively multimodal, so unlike Ollama there's no separate
+// vision-model split — one model handles text and images. See ADR-0018.
+export const CLAUDE_MODEL = 'claude-opus-5'
 
 export function pickModel(messages) {
   return messages.some((m) => m.images && m.images.length > 0) ? VISION_MODEL : TEXT_MODEL
@@ -98,9 +104,10 @@ export function loadServerSync() {
   }
 }
 
-export function loadVoiceMode() {
+export function loadChatMode() {
   try {
-    return localStorage.getItem(VOICE_MODE_KEY) === 'vocal' ? 'vocal' : 'text'
+    const stored = localStorage.getItem(CHAT_MODE_KEY)
+    return stored === 'vocal' || stored === 'claude' ? stored : 'text'
   } catch {
     return 'text'
   }
@@ -200,6 +207,23 @@ export function toOllamaMessage(message) {
     content: message.content,
     images: message.images.map((dataUrl) => dataUrl.split(',').pop()),
   }
+}
+
+// Claude's Messages API expects content blocks, not Ollama's bare
+// `images` array: an image block per attachment (base64 + its real media
+// type, parsed off the stored data URL prefix) followed by a text block —
+// omitted when there's no text, since Claude rejects an empty text block.
+export function toClaudeMessage(message) {
+  if (!message.images || message.images.length === 0) {
+    return { role: message.role, content: message.content }
+  }
+  const imageBlocks = message.images.map((dataUrl) => {
+    const [prefix, data] = dataUrl.split(',')
+    const media_type = prefix.match(/^data:([^;]+);base64$/)?.[1] || 'image/jpeg'
+    return { type: 'image', source: { type: 'base64', media_type, data } }
+  })
+  const content = message.content ? [...imageBlocks, { type: 'text', text: message.content }] : imageBlocks
+  return { role: message.role, content }
 }
 
 export function formatRelativeTime(ts, now = Date.now()) {

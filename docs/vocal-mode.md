@@ -1,6 +1,7 @@
 # Vocal mode
 
-A header `<select>` switches `voiceMode` between `text` and `vocal` (persisted in
+A header `<select>` switches `chatMode` between `text` and `vocal` (a third value, `claude`,
+selects [Claude mode](./claude-mode.md) instead — orthogonal to this page). This mode is persisted in
 `localStorage`). In `vocal` mode the input's send-button slot doubles as the mic button
 ([ADR-0011](./adr/0011-server-side-stt-tts-whisper-piper.md) for why STT/TTS run server-side
 via Whisper/Piper rather than the browser's Web Speech API,

@@ -17,6 +17,14 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/tts/, '/tts'),
       },
+      // Unlike /api/stt and /api/tts, this isn't a passthrough to a LAN
+      // backend -- it needs the same Express route (server/index.js) that
+      // production uses, since that's where the Anthropic API key and the
+      // SSE->NDJSON translation live. Same target as /session below.
+      '/api/claude-chat': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'http://192.168.1.241:11434',
         changeOrigin: true,

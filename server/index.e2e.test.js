@@ -12,7 +12,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 let app, server, baseUrl, sessionDir
-let ollamaFake, whisperFake, piperFake
+let ollamaFake, whisperFake, piperFake, anthropicFake
 
 function createFakeBackend() {
   let handler = (req, res) => {
@@ -40,19 +40,43 @@ function readBody(req) {
   })
 }
 
+// Anthropic's real SSE event framing for a streamed Messages API response,
+// matching what the `@anthropic-ai/sdk` client parses -- see
+// docs/streaming.md's "Raw SSE Format" in the claude-api skill.
+function writeAnthropicSse(res, textDeltas) {
+  res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+  send('message_start', {
+    type: 'message_start',
+    message: { id: 'msg_test', type: 'message', role: 'assistant', model: 'claude-opus-5', content: [], usage: {} },
+  })
+  send('content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+  for (const text of textDeltas) {
+    send('content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })
+  }
+  send('content_block_stop', { type: 'content_block_stop', index: 0 })
+  send('message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: textDeltas.length } })
+  send('message_stop', { type: 'message_stop' })
+  res.end()
+}
+
 beforeAll(async () => {
   ollamaFake = createFakeBackend()
   whisperFake = createFakeBackend()
   piperFake = createFakeBackend()
+  anthropicFake = createFakeBackend()
   const ollamaPort = await ollamaFake.listen()
   const whisperPort = await whisperFake.listen()
   const piperPort = await piperFake.listen()
+  const anthropicPort = await anthropicFake.listen()
 
   sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ollama-chat-test-'))
 
   process.env.OLLAMA_URL = `http://127.0.0.1:${ollamaPort}`
   process.env.WHISPER_URL = `http://127.0.0.1:${whisperPort}`
   process.env.PIPER_URL = `http://127.0.0.1:${piperPort}`
+  process.env.CLAUDE_URL = `http://127.0.0.1:${anthropicPort}`
+  process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key'
   process.env.SESSION_DATA_DIR = sessionDir
 
   // Import after env vars are set -- the module reads its config from
@@ -68,7 +92,7 @@ beforeAll(async () => {
 afterAll(async () => {
   server.closeAllConnections()
   await new Promise((resolve) => server.close(resolve))
-  await Promise.all([ollamaFake.close(), whisperFake.close(), piperFake.close()])
+  await Promise.all([ollamaFake.close(), whisperFake.close(), piperFake.close(), anthropicFake.close()])
   fs.rmSync(sessionDir, { recursive: true, force: true })
 })
 
@@ -104,6 +128,69 @@ describe('Ollama proxy (/api)', () => {
       headers: { Origin: 'http://this-should-never-reach-ollama.example' },
     })
     expect(seenOrigin).toBe(process.env.OLLAMA_URL)
+  })
+})
+
+describe('Claude proxy (/api/claude-chat)', () => {
+  it('translates Anthropic SSE deltas into the same NDJSON shape /api/chat uses', async () => {
+    let seenBody
+    anthropicFake.setHandler(async (req, res) => {
+      seenBody = JSON.parse(await readBody(req))
+      writeAnthropicSse(res, ['Bonjour', ' !'])
+    })
+
+    const res = await fetch(`${baseUrl}/api/claude-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-opus-5',
+        messages: [{ role: 'user', content: 'salut' }],
+        stream: true,
+      }),
+    })
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    const lines = text.trim().split('\n').map((l) => JSON.parse(l))
+    expect(lines).toEqual([{ message: { content: 'Bonjour' } }, { message: { content: ' !' } }])
+
+    expect(seenBody.model).toBe('claude-opus-5')
+    expect(seenBody.messages).toEqual([{ role: 'user', content: 'salut' }])
+  })
+
+  it('forwards the caller\'s x-api-key using ANTHROPIC_API_KEY, not any client-supplied value', async () => {
+    let seenApiKey
+    anthropicFake.setHandler(async (req, res) => {
+      seenApiKey = req.headers['x-api-key']
+      writeAnthropicSse(res, ['ok'])
+    })
+
+    await fetch(`${baseUrl}/api/claude-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-opus-5', messages: [{ role: 'user', content: 'hi' }] }),
+    })
+    expect(seenApiKey).toBe('sk-ant-test-key')
+  })
+
+  it('returns 500 without ever calling out when ANTHROPIC_API_KEY is not configured', async () => {
+    let called = false
+    anthropicFake.setHandler((req, res) => {
+      called = true
+      res.writeHead(200).end('{}')
+    })
+    const original = process.env.ANTHROPIC_API_KEY
+    delete process.env.ANTHROPIC_API_KEY
+    try {
+      const res = await fetch(`${baseUrl}/api/claude-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-opus-5', messages: [{ role: 'user', content: 'hi' }] }),
+      })
+      expect(res.status).toBe(500)
+      expect(called).toBe(false)
+    } finally {
+      process.env.ANTHROPIC_API_KEY = original
+    }
   })
 })
 

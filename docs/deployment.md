@@ -80,3 +80,30 @@ reach it by hostname instead of the bare MetalLB IP:
 the Ingress is what actually matches the `Host: ollama-chat.home` header and routes to the
 pod. The `192.168.1.244` path needs no `/etc/hosts` entry at all, by design
 ([ADR-0007](./adr/0007-dedicated-metallb-ip.md)).
+
+## Setting up the Claude API key
+
+`k8s/deployment.yaml` mounts `ANTHROPIC_API_KEY` from a Secret (`ollama-chat-anthropic`) that
+is **created out-of-band, once, directly in the cluster** — same posture as `ollama-chat-tls`
+above, never committed to Git ([ADR-0018](./adr/0018-claude-chat-mode.md)). Without it, "Claude"
+mode returns a `500` (checked before any outbound call is made — see `server/index.js`); every
+other mode is unaffected.
+
+Generate the key at [console.anthropic.com](https://console.anthropic.com), then create the
+Secret yourself, in your own terminal — not pasted through an AI chat session, since it's a
+standing credential:
+
+```sh
+read -s -p "Paste the Anthropic API key: " ANTHROPIC_KEY && echo
+sudo microk8s kubectl create secret generic ollama-chat-anthropic \
+  -n ollama-chat \
+  --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_KEY" \
+  --dry-run=client -o yaml | sudo microk8s kubectl apply -f -
+unset ANTHROPIC_KEY
+```
+
+(`read -s` keeps it out of shell history.) Verify it landed without printing the value:
+
+```sh
+sudo microk8s kubectl get secret ollama-chat-anthropic -n ollama-chat
+```

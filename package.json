@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "express": "^5.2.1",
     "http-proxy-middleware": "^4.2.0",
     "react": "^19.2.7",
