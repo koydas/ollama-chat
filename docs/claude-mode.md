@@ -9,23 +9,25 @@ Unlike `text`/`vocal` — which are both Ollama under the hood, differing only i
 sequenceDiagram
     participant U as Browser (React app)
     participant P as Express server<br/>(server/index.js)
+    participant G as homelab-gateway
     participant A as Anthropic Messages API
 
     U->>U: toClaudeMessage(messages)<br/>image + text content blocks, no vision-model split
     U->>P: POST /api/claude-chat<br/>{ model: CLAUDE_MODEL, messages, stream: true }
-    P->>P: ANTHROPIC_API_KEY configured?<br/>no → 500, no outbound call
-    P->>A: messages.stream() via @anthropic-ai/sdk<br/>(x-api-key: this app's own secret)
-    A-->>P: SSE: content_block_delta events
+    P->>G: messages.stream() via @anthropic-ai/sdk<br/>(x-api-key: placeholder, this app holds no real key)
+    G->>G: overwrite x-api-key with the gateway's own<br/>ANTHROPIC_API_KEY (that repo's ADR-0004)
+    G->>A: forwarded, real key attached
+    A-->>G-->>P: SSE: content_block_delta events
     P->>P: re-emit each text_delta as<br/>{"message":{"content":"..."}}\n
     P-->>U: NDJSON — same shape /api/chat already streams
     U->>U: append each chunk's content<br/>to the pending assistant message (unchanged code path)
 ```
 
-In production, `P`'s hop to `A` passes through `homelab-gateway` first, the same as the
-Ollama/Whisper/Piper hops — see that repo's
-[ADR-0003](https://github.com/koydas/homelab-gateway/blob/main/docs/adr/0003-front-claude-calls.md).
-Unlike the Ollama proxy, the gateway does no header rewriting for this hop: this app's own
-`x-api-key` travels through unchanged, so the gateway never sees or holds the credential.
+`P`'s hop to `A` always passes through `homelab-gateway` (`CLAUDE_URL` has no
+direct-to-Anthropic fallback, unlike the original design in ADR-0018) — this app deliberately
+holds no working Anthropic credential of its own; see
+[ADR-0019](./adr/0019-gateway-owns-anthropic-key.md) and that repo's
+[ADR-0004](https://github.com/koydas/homelab-gateway/blob/main/docs/adr/0004-gateway-owns-anthropic-key.md).
 
 ## Why the frontend's streaming code needed no changes
 

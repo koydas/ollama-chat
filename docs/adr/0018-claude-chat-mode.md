@@ -3,6 +3,11 @@
 - **Date:** 2026-07-31
 - **Status:** Accepted
 
+> **Note:** this app owning `ANTHROPIC_API_KEY` (below) was reversed the same day — it made the
+> deploy fail outright without a Secret that shouldn't have been required for an additive
+> feature. The credential now lives on `homelab-gateway` instead. See
+> [ADR-0019](./0019-gateway-owns-anthropic-key.md); everything else below is unchanged.
+
 ## Context
 
 Both existing modes (`text`, `vocal`) route through the same fixed-model-per-shape Ollama

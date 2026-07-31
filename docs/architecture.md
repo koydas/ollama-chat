@@ -28,7 +28,7 @@ subsystem has its own focused page:
 | Ollama | Runs the actual models; two tags are used: a text model and a vision model | in-cluster `ollama` Service, reached via homelab-gateway |
 | Whisper | Speech-to-text for vocal mode dictation, proxied at `/api/stt` | in-cluster `whisper` Service, reached via homelab-gateway |
 | Piper | Text-to-speech for vocal mode replies, proxied at `/api/tts` | in-cluster `piper` Service, reached via homelab-gateway |
-| Claude (Anthropic API) | Runs `CLAUDE_MODEL` for Claude mode, proxied at `/api/claude-chat` ([ADR-0018](./adr/0018-claude-chat-mode.md)) | `api.anthropic.com`, external — reached via homelab-gateway, credential owned by this app |
+| Claude (Anthropic API) | Runs `CLAUDE_MODEL` for Claude mode, proxied at `/api/claude-chat` ([ADR-0018](./adr/0018-claude-chat-mode.md)) | `api.anthropic.com`, external — reached via homelab-gateway, which owns the credential ([ADR-0019](./adr/0019-gateway-owns-anthropic-key.md)) |
 | ArgoCD + GHCR | Builds, publishes, and deploys the app on every push to `main` | `.github/workflows/docker-publish.yml`, `k8s/` |
 
 ## Runtime topology (production)

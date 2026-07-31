@@ -22,3 +22,4 @@ Architecture Decision Records (ADR) for `ollama-chat`.
 - [ADR-0016: Switch the vision model to `llava:7b`](./0016-switch-vision-model-to-llava.md)
 - [ADR-0017: End-to-end tests for the Express proxy server, gated in CI](./0017-e2e-tests-for-the-express-proxy-server.md)
 - [ADR-0018: Add a "Claude" chat mode alongside Chat and Vocal](./0018-claude-chat-mode.md)
+- [ADR-0019: This app holds no Anthropic credential — homelab-gateway does](./0019-gateway-owns-anthropic-key.md)

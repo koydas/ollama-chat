@@ -19,10 +19,11 @@ const DIST_DIR = path.join(__dirname, '..', 'dist')
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama.ollama.svc.cluster.local:11434'
 const WHISPER_URL = process.env.WHISPER_URL || 'http://whisper.whisper.svc.cluster.local:9000'
 const PIPER_URL = process.env.PIPER_URL || 'http://piper.piper.svc.cluster.local:8000'
-// Unset in local dev (talks to Anthropic directly); in production this is
-// homelab-gateway, same as the three URLs above — see ADR-0018 and
-// homelab-gateway's ADR-0003.
-const CLAUDE_URL = process.env.CLAUDE_URL
+// Unlike the three above, this always defaults to homelab-gateway, never
+// straight to Anthropic — this app holds no Anthropic credential of its
+// own (see ADR-0019, and homelab-gateway's ADR-0004 for why the gateway
+// holds it instead), so a direct-to-Anthropic fallback would just fail.
+const CLAUDE_URL = process.env.CLAUDE_URL || 'http://homelab-gateway.homelab-gateway.svc.cluster.local:80'
 // Hard cap on thinking + response tokens combined (Claude Opus 5 runs
 // adaptive thinking by default) — generous enough that a normal chat
 // question isn't truncated mid-thought, without leaving cost unbounded.
@@ -58,17 +59,15 @@ app.use(
 // chunk), so the frontend's streamReply() needs no per-provider parsing
 // branch. express.json() is scoped to just this route, not applied
 // globally before it, since the passthrough proxies above need the raw
-// request stream untouched. See ADR-0018.
+// request stream untouched. See ADR-0019.
 app.post('/api/claude-chat', express.json({ limit: '25mb' }), async (req, res) => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured on the server' })
-    return
-  }
-
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    ...(CLAUDE_URL ? { baseURL: CLAUDE_URL } : {}),
-  })
+  // No ANTHROPIC_API_KEY here -- @anthropic-ai/sdk requires a non-empty
+  // string to construct, but the real credential lives on homelab-gateway
+  // (ADR-0019), which overwrites this placeholder with the real key before
+  // forwarding to Anthropic. If CLAUDE_URL were ever pointed elsewhere
+  // (e.g. Anthropic directly), every call would 401 -- by design, since
+  // this app is never meant to hold that credential itself.
+  const anthropic = new Anthropic({ apiKey: 'placeholder-gateway-injects-the-real-key', baseURL: CLAUDE_URL })
 
   try {
     const stream = anthropic.messages.stream({

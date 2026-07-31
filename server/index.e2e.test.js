@@ -76,7 +76,6 @@ beforeAll(async () => {
   process.env.WHISPER_URL = `http://127.0.0.1:${whisperPort}`
   process.env.PIPER_URL = `http://127.0.0.1:${piperPort}`
   process.env.CLAUDE_URL = `http://127.0.0.1:${anthropicPort}`
-  process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key'
   process.env.SESSION_DATA_DIR = sessionDir
 
   // Import after env vars are set -- the module reads its config from
@@ -157,7 +156,7 @@ describe('Claude proxy (/api/claude-chat)', () => {
     expect(seenBody.messages).toEqual([{ role: 'user', content: 'salut' }])
   })
 
-  it('forwards the caller\'s x-api-key using ANTHROPIC_API_KEY, not any client-supplied value', async () => {
+  it('sends a placeholder x-api-key -- this app holds no real Anthropic credential (ADR-0019)', async () => {
     let seenApiKey
     anthropicFake.setHandler(async (req, res) => {
       seenApiKey = req.headers['x-api-key']
@@ -169,28 +168,24 @@ describe('Claude proxy (/api/claude-chat)', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'claude-opus-5', messages: [{ role: 'user', content: 'hi' }] }),
     })
-    expect(seenApiKey).toBe('sk-ant-test-key')
+    // The exact value is opaque by design (see the comment on the
+    // anthropic client construction in server/index.js) -- homelab-gateway
+    // is the one that overwrites it with the real key (that repo's
+    // ADR-0004). This app never reads ANTHROPIC_API_KEY at all, so there's
+    // nothing meaningful to compare against but non-empty-ness.
+    expect(seenApiKey).toBeTruthy()
   })
 
-  it('returns 500 without ever calling out when ANTHROPIC_API_KEY is not configured', async () => {
-    let called = false
-    anthropicFake.setHandler((req, res) => {
-      called = true
-      res.writeHead(200).end('{}')
+  it('works with no ANTHROPIC_API_KEY set anywhere in this process (this app never needs one)', async () => {
+    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined()
+    anthropicFake.setHandler((req, res) => writeAnthropicSse(res, ['toujours en vie']))
+    const res = await fetch(`${baseUrl}/api/claude-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-opus-5', messages: [{ role: 'user', content: 'hi' }] }),
     })
-    const original = process.env.ANTHROPIC_API_KEY
-    delete process.env.ANTHROPIC_API_KEY
-    try {
-      const res = await fetch(`${baseUrl}/api/claude-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-opus-5', messages: [{ role: 'user', content: 'hi' }] }),
-      })
-      expect(res.status).toBe(500)
-      expect(called).toBe(false)
-    } finally {
-      process.env.ANTHROPIC_API_KEY = original
-    }
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('toujours en vie')
   })
 })
 
